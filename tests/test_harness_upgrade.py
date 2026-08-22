@@ -115,9 +115,7 @@ class HarnessUpgradeTests(unittest.TestCase):
             source = base / "release"
             root.mkdir()
             source.mkdir()
-            policy = json.loads(
-                (ROOT / "harness/ownership.json").read_text(encoding="utf-8")
-            )
+            policy = json.loads((ROOT / "harness/ownership.json").read_text(encoding="utf-8"))
             for release_root, version in ((root, "1.0.0"), (source, "2.0.0")):
                 write_json(
                     release_root / "harness/version.json",
@@ -146,9 +144,7 @@ class HarnessUpgradeTests(unittest.TestCase):
                     ),
                 )
 
-            current_lock = json.loads(
-                (root / "harness.lock").read_text(encoding="utf-8")
-            )
+            current_lock = json.loads((root / "harness.lock").read_text(encoding="utf-8"))
             self.assertEqual(
                 "merge-required",
                 current_lock["files"]["harness/ownership.json"]["ownership"],
@@ -157,9 +153,7 @@ class HarnessUpgradeTests(unittest.TestCase):
             operations = {item["path"]: item for item in plan["operations"]}
             for name in ("test_auditor.py", "test_auditor_cli.py"):
                 relative = f"tests/{name}"
-                self.assertEqual(
-                    "project-owned", current_lock["files"][relative]["ownership"]
-                )
+                self.assertEqual("project-owned", current_lock["files"][relative]["ownership"])
                 self.assertEqual("remove", operations[relative]["action"])
                 self.assertEqual("manual", operations[relative]["disposition"])
                 self.assertTrue(operations[relative]["requires_explicit_review"])

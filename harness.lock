@@ -488,7 +488,7 @@
       "ownership": "upstream-owned"
     },
     "tests/test_harness_upgrade.py": {
-      "sha256": "dd2efbb097e9938a5fb1cef5aac1e2de1733e1ec9279bc2d783856435e929139",
+      "sha256": "db5ae678093ce61a0ec63de8dd4ec563b594a8828023bd0e76831eba16408255",
       "ownership": "upstream-owned"
     },
     "tests/test_loop.py": {
