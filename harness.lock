@@ -224,7 +224,7 @@
       "ownership": "merge-required"
     },
     "README.md": {
-      "sha256": "908432b23590a60e2232f8a9f8fe806291eb4187de6c87d1375f962588d0c423",
+      "sha256": "ef3f8a38425db60f175efc5795e130a894e63f424a399a24ce08bb24afe35c72",
       "ownership": "merge-required"
     },
     "SECURITY.md": {
@@ -256,7 +256,7 @@
       "ownership": "project-owned"
     },
     "docs/adr/0006-repository-audit-finding-model.md": {
-      "sha256": "29988d9fa3363a48d813339256b5263dd4800af2dbf9894454353f90203be897",
+      "sha256": "89bf6af3ed6390fbd08635536d4669a0b68687a69d94397271a94557f2f85e76",
       "ownership": "project-owned"
     },
     "docs/project/charter.md": {
@@ -268,7 +268,7 @@
       "ownership": "project-owned"
     },
     "docs/project/handoff.md": {
-      "sha256": "982e0a05e7fbe62c9fd25c0d1f48c16d64e2c3b58c1c149806279dcb25929e1d",
+      "sha256": "119546888a44ae91c745c67da99dd9557cf3ce2a0b7400b37f312b571c103599",
       "ownership": "project-owned"
     },
     "docs/project/working-agreements.md": {
@@ -344,7 +344,7 @@
       "ownership": "upstream-owned"
     },
     "harness/project.yaml": {
-      "sha256": "4e6c04096b0858e774f33ad99826f97e3e058cbad67780a2225a080885bd322b",
+      "sha256": "b022f96dccfa22efb068460d11cac24f9d4d4d645cc153553384b77d46779744",
       "ownership": "project-owned"
     },
     "harness/roles/explorer.md": {

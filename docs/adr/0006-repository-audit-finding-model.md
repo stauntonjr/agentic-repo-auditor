@@ -1,8 +1,8 @@
 # ADR-0006: Deterministic repository audit finding model
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-08-22
-- Deciders: human owner; independent verifier reviews implementation evidence
+- Deciders: human owner (accepted 2026-08-22); independent verifier reviews implementation evidence
 - Governing issue: LOCAL-1
 
 ## Context
@@ -75,4 +75,4 @@ Full application behavior, architecture, data-flow, and runtime assessment is in
 
 Verify byte-identical JSON and Markdown on repeated runs, target-tree identity before and after, schema shape, stable ordering, failure exit behavior, mutable Action detection, clean wheel installation, and live audits of two different repositories.
 
-Revisit when a real consumer requires SARIF, framework compliance, authenticated GitHub evidence, cross-run baselines, organization aggregation, or full-application analysis. Acceptance of this proposed ADR remains a human decision before public release.
+Revisit when a real consumer requires SARIF, framework compliance, authenticated GitHub evidence, cross-run baselines, organization aggregation, or full-application analysis.

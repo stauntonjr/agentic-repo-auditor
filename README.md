@@ -95,7 +95,7 @@ The offline core does not:
 - emit SARIF yet; or
 - assess full application behavior, architecture, data flow, runtime health, or product completeness.
 
-That last need is valuable but belongs to a companion full-application assessment product. The research and proposed architecture decision are in [repository-auditor-landscape.md](docs/research/repository-auditor-landscape.md) and [ADR-0006](docs/adr/0006-repository-audit-finding-model.md).
+That last need is valuable but belongs to a companion full-application assessment product. The research and accepted architecture decision are in [repository-auditor-landscape.md](docs/research/repository-auditor-landscape.md) and [ADR-0006](docs/adr/0006-repository-audit-finding-model.md).
 
 ## Security and privacy
 

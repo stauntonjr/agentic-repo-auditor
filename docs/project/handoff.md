@@ -15,10 +15,11 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Harness version: 0.4.0.
 - Product version: 0.1.0, unreleased.
 - Project status: active; greenfield intake accepted 2026-08-22.
-- Active engineering loop: `20260822T164511Z-33525376`, revision 3 attempt 1 for LOCAL-1.
-- Release state: local candidate only; no release authorization or remote publication.
-- Intended repository: `stauntonjr/agentic-repo-auditor`.
-- Independent verification returned REVISE on hostile-repository Git execution, content-insensitive state identity, workflow parsing, symlink containment, input normalization, and version reconciliation. Revision 3 further covers repository-configured content filters and nested HEAD/index identity; it is not accepted until a fresh pinned review approves it.
+- Completed product loop: `20260822T164511Z-33525376`, revision 4 attempt 1 for LOCAL-1, reported at commit `743477c` after independent AC1-AC5 approval.
+- Active publication loop: `20260822T195818Z-743477c6` for LOCAL-2.
+- Architecture: ADR-0006 accepted by the human owner on 2026-08-22.
+- Publication state: public source publication at `stauntonjr/agentic-repo-auditor` is authorized and in progress; no tag, GitHub Release, or package-registry publication is authorized.
+- Product release state: version 0.1.0 remains unreleased.
 
 ## Implemented product slice
 
@@ -31,7 +32,7 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Bounded semantic YAML parsing for workflows and Skill metadata through pinned PyYAML 6.0.2.
 - CLI exit thresholds for advisory and gating use.
 - Clean-install wheel and installed-entrypoint smoke boundary.
-- Primary-source landscape research and proposed ADR-0006.
+- Primary-source landscape research and accepted ADR-0006.
 
 ## Implemented control plane
 
@@ -50,9 +51,7 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Open decisions
 
-- Human acceptance or revision of proposed ADR-0006 before public release.
 - Which existing repository should be the first published dogfood report target.
-- Whether the intended GitHub repository should be public or private.
 - Whether GitHub Project creation should copy a canonical user Project or render fields from desired state.
 - When to add an authenticated, read-only GitHub evidence adapter.
 - Whether downstream consumers require SARIF export or cross-run baselining.

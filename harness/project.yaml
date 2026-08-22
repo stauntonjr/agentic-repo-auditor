@@ -142,6 +142,7 @@
     }
   ],
   "github": {
+    "visibility": "public",
     "issues_are_canonical_work_items": true,
     "project_enabled": true,
     "planning_contract": ".github/planning.json",
@@ -156,5 +157,8 @@
     }
   },
   "open_questions": [],
-  "decisions": []
+  "decisions": [
+    "2026-08-22: The human owner accepted ADR-0006.",
+    "2026-08-22: The human owner authorized public source publication at stauntonjr/agentic-repo-auditor; no tag, GitHub Release, or package-registry publication was authorized."
+  ]
 }
