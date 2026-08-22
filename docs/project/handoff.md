@@ -13,10 +13,23 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 ## Current state
 
 - Harness version: 0.4.0.
-- Project status: template; project intake not yet accepted.
-- Active engineering loop: none.
-- Release state: not applicable.
-- Publication target: public GitHub template `stauntonjr/agentic-project-template`.
+- Product version: 0.1.0, unreleased.
+- Project status: active; greenfield intake accepted 2026-08-22.
+- Active engineering loop: none after LOCAL-1 reconciliation.
+- Release state: local candidate only; no release authorization or remote publication.
+- Intended repository: `stauntonjr/agentic-repo-auditor`.
+
+## Implemented product slice
+
+- Read-only local Git repository audit CLI.
+- Deterministic JSON and Markdown rendering from one finding/evidence model.
+- Versioned configuration and report schemas.
+- Stable finding IDs, explicit status and severity, evidence, remediation, and target state identity.
+- Governance, Git, CI, security, testing, and agent-readiness checks.
+- Configurable check suppression with fail-closed validation.
+- CLI exit thresholds for advisory and gating use.
+- Clean-install wheel and installed-entrypoint smoke boundary.
+- Primary-source landscape research and proposed ADR-0006.
 
 ## Implemented control plane
 
@@ -35,10 +48,13 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Open decisions
 
-- Which repository should be the first live dogfood target.
+- Human acceptance or revision of proposed ADR-0006 before public release.
+- Which existing repository should be the first published dogfood report target.
+- Whether the intended GitHub repository should be public or private.
 - Whether GitHub Project creation should copy a canonical user Project or render fields from desired state.
-- Which live repository should dogfood the Pi adapter's intake-to-report path.
-- Which live GitHub security settings should be reconciled automatically after the first dogfood audit.
+- When to add an authenticated, read-only GitHub evidence adapter.
+- Whether downstream consumers require SARIF export or cross-run baselining.
+- The separate product boundary and name for full-application assessment.
 
 ## Refresh protocol
 

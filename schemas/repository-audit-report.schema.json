@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/stauntonjr/agentic-repo-auditor/main/schemas/repository-audit-report.schema.json",
+  "title": "Agentic Repo Auditor report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool",
+    "target",
+    "configuration",
+    "summary",
+    "findings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"const": "agentic-repo-auditor"},
+        "version": {"type": "string"}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "revision", "branch", "dirty", "state_id"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "branch": {"type": "string", "minLength": 1},
+        "dirty": {"type": "boolean"},
+        "state_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["disabled_checks"],
+      "properties": {
+        "disabled_checks": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "by_status", "by_severity"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "by_status": {"$ref": "#/$defs/statusCounts"},
+        "by_severity": {"$ref": "#/$defs/severityCounts"}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    }
+  },
+  "$defs": {
+    "statusCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "warn", "fail", "not-applicable", "unknown"],
+      "properties": {
+        "pass": {"type": "integer", "minimum": 0},
+        "warn": {"type": "integer", "minimum": 0},
+        "fail": {"type": "integer", "minimum": 0},
+        "not-applicable": {"type": "integer", "minimum": 0},
+        "unknown": {"type": "integer", "minimum": 0}
+      }
+    },
+    "severityCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["info", "low", "medium", "high"],
+      "properties": {
+        "info": {"type": "integer", "minimum": 0},
+        "low": {"type": "integer", "minimum": 0},
+        "medium": {"type": "integer", "minimum": 0},
+        "high": {"type": "integer", "minimum": 0}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "value"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "path": {"type": "string"},
+        "value": {"type": "string"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "status",
+        "severity",
+        "title",
+        "description",
+        "evidence",
+        "remediation"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$"
+        },
+        "category": {
+          "enum": ["governance", "git", "ci", "security", "testing", "agent-readiness"]
+        },
+        "status": {"enum": ["pass", "warn", "fail", "not-applicable", "unknown"]},
+        "severity": {"enum": ["info", "low", "medium", "high"]},
+        "title": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/evidence"},
+          "minItems": 1
+        },
+        "remediation": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

@@ -1,9 +1,29 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
 [project]
-name = "agentic-project-template"
-version = "0.4.0"
-description = "A reusable engineering harness for agent-developed projects"
+name = "agentic-repo-auditor"
+version = "0.1.0"
+description = "Read-only, evidence-backed repository readiness auditor"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+authors = [{name = "James R. Staunton Jr."}]
+keywords = ["agents", "audit", "governance", "repository", "security"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+[project.scripts]
+agentic-repo-auditor = "agentic_repo_auditor.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentic_repo_auditor"]
 
 [tool.ruff]
 line-length = 100
@@ -12,6 +32,11 @@ target-version = "py311"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.11"
+
 [tool.coverage.run]
 branch = true
 relative_files = true
+source = ["agentic_repo_auditor"]

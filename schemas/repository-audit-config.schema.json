@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/stauntonjr/agentic-repo-auditor/main/schemas/repository-audit-config.schema.json",
+  "title": "Agentic Repo Auditor configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "disabled_checks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$"
+      },
+      "uniqueItems": true,
+      "default": []
+    }
+  }
+}

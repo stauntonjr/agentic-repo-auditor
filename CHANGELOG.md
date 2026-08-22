@@ -1,8 +1,21 @@
 # Changelog
 
-All notable changes to the harness are recorded here. The harness version and a derived project's product version are independent release streams.
+All notable product changes are recorded here. Product and harness versions are independent.
 
-## [0.4.0] - Unreleased
+## [0.1.0] - Unreleased
+
+### Added
+
+- Read-only local repository audit CLI with deterministic JSON and Markdown output.
+- Versioned configuration and report schemas.
+- Governance, Git, CI, security, testing, and agent-readiness checks.
+- Clean-install package and CLI verification.
+
+### Changed
+
+- Reconciled the generated template identity with Agentic Repo Auditor.
+
+## Harness baseline [0.4.0] - 2026-08-22
 
 ### Added
 
