@@ -34,7 +34,7 @@ Maintenance was current at inspection time for all five canonical repositories. 
 
 ### Build
 
-Build a dependency-free local collector and a small versioned report schema. Use stable finding IDs, explicit status/severity, evidence records, target state identity, deterministic ordering, and separate renderers. This is the smallest option that satisfies the accepted product contract.
+Build a dependency-free local collector and a small versioned report schema. Use stable finding IDs, explicit status/severity, evidence records, content-bound target state identity, deterministic ordering, repository-contained evidence reads, and separate renderers. For the narrow workflow checks, use conservative YAML-aware extraction that fails closed rather than constructing arbitrary repository-controlled objects. This is the smallest option that satisfies the accepted product contract.
 
 ### Adopt
 

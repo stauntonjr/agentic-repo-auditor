@@ -15,9 +15,10 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Harness version: 0.4.0.
 - Product version: 0.1.0, unreleased.
 - Project status: active; greenfield intake accepted 2026-08-22.
-- Active engineering loop: none after LOCAL-1 reconciliation.
+- Active engineering loop: `20260822T164511Z-33525376`, attempt 3 for LOCAL-1.
 - Release state: local candidate only; no release authorization or remote publication.
 - Intended repository: `stauntonjr/agentic-repo-auditor`.
+- Independent verification of the first candidate returned REVISE on hostile-repository Git execution, content-insensitive state identity, workflow parsing, symlink containment, input normalization, and version reconciliation. Attempt 3 contains corrective work and is not accepted until a fresh pinned review approves it.
 
 ## Implemented product slice
 

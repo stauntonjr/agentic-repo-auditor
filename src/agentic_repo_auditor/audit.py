@@ -6,10 +6,11 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, Iterator
 
 from . import __version__
 from .model import Evidence, Finding, Report, TargetState
@@ -26,8 +27,18 @@ class AuditConfig:
     disabled_checks: frozenset[str] = frozenset()
 
 
-ACTION_USE = re.compile(r"^\s*(?:-\s*)?uses\s*:\s*[\"']?([^\"'#\s]+)", re.MULTILINE)
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+FULL_COMMIT_SHA = re.compile(r"^[0-9a-fA-F]{40}$")
+DOCKER_DIGEST = re.compile(r"^docker://[^\s@]+@sha256:[0-9a-fA-F]{64}$")
+MAX_EVIDENCE_BYTES = 2 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class WorkflowInspection:
+    """References and parse errors extracted from one workflow."""
+
+    references: tuple[str, ...]
+    errors: tuple[str, ...]
 
 
 def _finding(
@@ -55,19 +66,220 @@ def _finding(
 def _git(root: Path, *args: str, check: bool = True) -> str:
     environment = os.environ.copy()
     environment["GIT_OPTIONAL_LOCKS"] = "0"
-    result = subprocess.run(
-        ["git", "--no-optional-locks", "-C", str(root), *args],
-        check=False,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=environment,
-        timeout=15,
-    )
+    environment["GIT_NO_LAZY_FETCH"] = "1"
+    environment["GIT_TERMINAL_PROMPT"] = "0"
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment["GIT_CONFIG_GLOBAL"] = os.devnull
+    command = [
+        "git",
+        "--no-optional-locks",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.untrackedCache=false",
+        "-c",
+        f"core.hooksPath={os.devnull}",
+        "-C",
+        str(root),
+        *args,
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
+        raise AuditError(f"cannot inspect Git repository safely: {exc}") from exc
     if check and result.returncode:
         detail = result.stderr.strip() or result.stdout.strip() or "git command failed"
         raise AuditError(detail)
-    return result.stdout.strip()
+    return result.stdout.rstrip("\r\n")
+
+
+def _repository_relative(relative: str) -> Path:
+    path = Path(relative)
+    if not relative or path.is_absolute() or ".." in path.parts:
+        raise AuditError(f"unsafe repository path: {relative!r}")
+    return path
+
+
+def _safe_kind(root: Path, relative: str) -> str:
+    """Classify a repository path without following any symlink component."""
+
+    cursor = root
+    parts = _repository_relative(relative).parts
+    metadata: os.stat_result | None = None
+    for index, part in enumerate(parts):
+        cursor /= part
+        try:
+            metadata = cursor.lstat()
+        except FileNotFoundError:
+            return "absent"
+        except OSError as exc:
+            raise AuditError(f"cannot inspect repository path {relative}: {exc}") from exc
+        if stat.S_ISLNK(metadata.st_mode):
+            return "symlink"
+        if index < len(parts) - 1 and not stat.S_ISDIR(metadata.st_mode):
+            return "blocked"
+    if metadata is None:  # Guarded by _repository_relative; keeps the invariant explicit.
+        raise AuditError(f"unsafe repository path: {relative!r}")
+    if stat.S_ISREG(metadata.st_mode):
+        return "file"
+    if stat.S_ISDIR(metadata.st_mode):
+        return "directory"
+    return "other"
+
+
+def _safe_regular_file(root: Path, relative: str) -> Path | None:
+    return root / _repository_relative(relative) if _safe_kind(root, relative) == "file" else None
+
+
+def _safe_directory(root: Path, relative: str) -> Path | None:
+    return (
+        root / _repository_relative(relative) if _safe_kind(root, relative) == "directory" else None
+    )
+
+
+def _read_repository_text(root: Path, relative: str) -> str | None:
+    path = _safe_regular_file(root, relative)
+    if path is None:
+        return None
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        raise AuditError(f"cannot read repository file {relative}: {exc}") from exc
+    if len(payload) > MAX_EVIDENCE_BYTES:
+        raise AuditError(
+            f"repository file exceeds {MAX_EVIDENCE_BYTES} byte evidence limit: {relative}"
+        )
+    try:
+        return payload.decode("utf-8", errors="strict")
+    except UnicodeError as exc:
+        raise AuditError(f"repository file is not valid UTF-8: {relative}") from exc
+
+
+def _fingerprint_worktree_path(root: Path, relative: str) -> str:
+    """Hash a worktree entry without following links or reading Git metadata."""
+
+    target = root / _repository_relative(relative)
+    digest = hashlib.sha256()
+
+    def visit(path: Path, display: str) -> None:
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            digest.update(f"absent\0{display}\0".encode("utf-8", "surrogateescape"))
+            return
+        except OSError as exc:
+            raise AuditError(f"cannot fingerprint repository path {relative}: {exc}") from exc
+        mode = metadata.st_mode
+        encoded = display.encode("utf-8", "surrogateescape")
+        if stat.S_ISLNK(mode):
+            target_text = os.readlink(path).encode("utf-8", "surrogateescape")
+            digest.update(b"symlink\0" + encoded + b"\0" + target_text + b"\0")
+        elif stat.S_ISREG(mode):
+            digest.update(f"file\0{mode & 0o7777:o}\0".encode("ascii") + encoded + b"\0")
+            try:
+                with path.open("rb") as handle:
+                    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                        digest.update(chunk)
+            except OSError as exc:
+                raise AuditError(f"cannot fingerprint repository file {relative}: {exc}") from exc
+            digest.update(b"\0")
+        elif stat.S_ISDIR(mode):
+            digest.update(b"directory\0" + encoded + b"\0")
+            try:
+                children = sorted(path.iterdir(), key=lambda item: item.name)
+            except OSError as exc:
+                raise AuditError(f"cannot inspect repository directory {relative}: {exc}") from exc
+            for child in children:
+                if child.name == ".git":
+                    continue
+                child_display = f"{display}/{child.name}" if display else child.name
+                visit(child, child_display)
+        else:
+            digest.update(f"other\0{mode}\0{metadata.st_size}\0".encode("ascii") + encoded + b"\0")
+
+    visit(target, relative)
+    return digest.hexdigest()
+
+
+def _hidden_index_paths(root: Path) -> dict[str, tuple[str, ...]]:
+    flags: dict[str, set[str]] = {}
+    for option, label, predicate in (
+        ("-v", "assume-unchanged", lambda tag: tag.islower()),
+        ("-t", "skip-worktree", lambda tag: tag == "S"),
+    ):
+        output = _git(root, "ls-files", option, "-z")
+        for token in output.split("\0"):
+            if not token:
+                continue
+            tag, separator, path = token.partition(" ")
+            if not separator or len(tag) != 1:
+                raise AuditError(f"unexpected Git index flag entry: {token!r}")
+            if predicate(tag):
+                flags.setdefault(path, set()).add(label)
+    return {path: tuple(sorted(values)) for path, values in flags.items()}
+
+
+def _status_paths(status_text: str) -> list[tuple[str, str]]:
+    tokens = status_text.split("\0")
+    entries: list[tuple[str, str]] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        index += 1
+        if not token:
+            continue
+        if len(token) < 4 or token[2] != " ":
+            raise AuditError(f"unexpected Git porcelain entry: {token!r}")
+        status_code = token[:2]
+        entries.append((token[3:].rstrip("/"), status_code))
+        if "R" in status_code or "C" in status_code:
+            if index >= len(tokens) or not tokens[index]:
+                raise AuditError("incomplete Git rename/copy status entry")
+            entries.append((tokens[index].rstrip("/"), f"{status_code}:source"))
+            index += 1
+    return entries
+
+
+def _state_entries(root: Path, status_text: str) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    flags_by_path = _hidden_index_paths(root)
+    for relative, status_code in _status_paths(status_text):
+        index_state = _git(root, "ls-files", "--stage", "-z", "--", relative, check=False)
+        entries.append(
+            {
+                "path": relative,
+                "status": status_code,
+                "worktree": _fingerprint_worktree_path(root, relative),
+                "index": hashlib.sha256(index_state.encode("utf-8")).hexdigest(),
+                "index_flags": list(flags_by_path.get(relative, ())),
+            }
+        )
+        seen.add(relative)
+    for relative, flags in flags_by_path.items():
+        if relative in seen:
+            continue
+        index_state = _git(root, "ls-files", "--stage", "-z", "--", relative)
+        entries.append(
+            {
+                "path": relative,
+                "status": "index-hidden",
+                "worktree": _fingerprint_worktree_path(root, relative),
+                "index": hashlib.sha256(index_state.encode("utf-8")).hexdigest(),
+                "index_flags": list(flags),
+            }
+        )
+    return sorted(entries, key=lambda item: (item["path"], item["status"]))
 
 
 def _target_state(root: Path) -> tuple[TargetState, str]:
@@ -81,13 +293,22 @@ def _target_state(root: Path) -> tuple[TargetState, str]:
         root,
         "status",
         "--porcelain=v1",
-        "--untracked-files=normal",
+        "-z",
+        "--untracked-files=all",
         "--ignore-submodules=none",
     )
-    identity = hashlib.sha256(
-        f"{root.name}\n{revision}\n{branch}\n{status}\n".encode("utf-8")
-    ).hexdigest()
-    return TargetState(root.name, revision, branch, bool(status), f"sha256:{identity}"), status
+    status_entries = _status_paths(status)
+    payload = {
+        "name": root.name,
+        "revision": revision,
+        "branch": branch,
+        "entries": _state_entries(root, status),
+    }
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    identity = hashlib.sha256(serialized).hexdigest()
+    return TargetState(
+        root.name, revision, branch, bool(status_entries), f"sha256:{identity}"
+    ), status
 
 
 def _presence_check(
@@ -99,10 +320,17 @@ def _presence_check(
     description: str,
     remediation: str,
 ) -> Finding:
-    present = tuple(path for path in paths if (root / path).exists())
+    present = tuple(path for path in paths if _safe_regular_file(root, path) is not None)
+    rejected = tuple(
+        f"{path}:{_safe_kind(root, path)}"
+        for path in paths
+        if _safe_kind(root, path) not in {"absent", "file"}
+    )
     status = "pass" if present else "warn"
     severity = "info" if present else "medium"
     value = ", ".join(present) if present else "none found"
+    evidence = [Evidence("path-presence", ".", value)]
+    evidence.extend(Evidence("rejected-path", path.split(":", 1)[0], path) for path in rejected)
     return _finding(
         finding_id,
         category,
@@ -110,7 +338,7 @@ def _presence_check(
         severity,
         title,
         description,
-        [Evidence("path-presence", ".", value)],
+        evidence,
         remediation,
     )
 
@@ -141,7 +369,7 @@ def _governance_contract(root: Path, _: str) -> Finding:
 
 def _governance_community_files(root: Path, _: str) -> Finding:
     expected = ("README.md", "CONTRIBUTING.md", "LICENSE")
-    present = tuple(path for path in expected if (root / path).is_file())
+    present = tuple(path for path in expected if _safe_regular_file(root, path) is not None)
     missing = tuple(path for path in expected if path not in present)
     return _finding(
         "governance.community-files",
@@ -156,7 +384,7 @@ def _governance_community_files(root: Path, _: str) -> Finding:
 
 
 def _git_clean(root: Path, status_text: str) -> Finding:
-    entries = tuple(line for line in status_text.splitlines() if line)
+    entries = tuple(_status_paths(status_text))
     return _finding(
         "git.clean-worktree",
         "git",
@@ -170,10 +398,180 @@ def _git_clean(root: Path, status_text: str) -> Finding:
 
 
 def _workflow_paths(root: Path) -> tuple[Path, ...]:
-    workflow_root = root / ".github/workflows"
-    if not workflow_root.is_dir():
+    workflow_root = _safe_directory(root, ".github/workflows")
+    if workflow_root is None:
         return ()
-    return tuple(sorted((*workflow_root.glob("*.yml"), *workflow_root.glob("*.yaml"))))
+    try:
+        paths = tuple(
+            sorted(
+                path
+                for path in workflow_root.iterdir()
+                if path.suffix in {".yml", ".yaml"}
+                and _safe_kind(root, path.relative_to(root).as_posix()) == "file"
+            )
+        )
+    except OSError as exc:
+        raise AuditError(f"cannot list repository workflows: {exc}") from exc
+    return paths
+
+
+def _strip_yaml_comment(value: str) -> str:
+    single = False
+    double = False
+    escaped = False
+    for index, character in enumerate(value):
+        if double and character == "\\" and not escaped:
+            escaped = True
+            continue
+        if character == '"' and not single and not escaped:
+            double = not double
+        elif character == "'" and not double:
+            if single and index + 1 < len(value) and value[index + 1] == "'":
+                continue
+            single = not single
+        elif character == "#" and not single and not double:
+            if index == 0 or value[index - 1].isspace():
+                return value[:index]
+        escaped = False
+    return value
+
+
+def _quoted_scalar(value: str) -> tuple[str | None, int]:
+    quote = value[0]
+    index = 1
+    result: list[str] = []
+    while index < len(value):
+        character = value[index]
+        if quote == "'" and character == "'":
+            if index + 1 < len(value) and value[index + 1] == "'":
+                result.append("'")
+                index += 2
+                continue
+            return "".join(result), index + 1
+        if quote == '"' and character == '"':
+            token = value[: index + 1]
+            try:
+                decoded = json.loads(token)
+            except json.JSONDecodeError:
+                return None, index + 1
+            return decoded if isinstance(decoded, str) else None, index + 1
+        result.append(character)
+        index += 1
+    return None, len(value)
+
+
+def _mapping_key_at(value: str, start: int, *, sequence: bool) -> tuple[str, int] | None:
+    index = start
+    while index < len(value) and value[index].isspace():
+        index += 1
+    if sequence and index < len(value) and value[index] == "-":
+        index += 1
+        while index < len(value) and value[index].isspace():
+            index += 1
+    if index >= len(value):
+        return None
+    if value[index] in {"'", '"'}:
+        key, consumed = _quoted_scalar(value[index:])
+        if key is None:
+            return None
+        index += consumed
+    else:
+        match = re.match(r"[A-Za-z0-9_.-]+", value[index:])
+        if match is None:
+            return None
+        key = match.group(0)
+        index += len(key)
+    while index < len(value) and value[index].isspace():
+        index += 1
+    if index >= len(value) or value[index] != ":":
+        return None
+    return key, index + 1
+
+
+def _mapping_scalar(value: str, start: int) -> tuple[str | None, str | None]:
+    remainder = value[start:].lstrip()
+    if not remainder:
+        return None, "uses value is empty"
+    if remainder[0] in {"'", '"'}:
+        scalar, consumed = _quoted_scalar(remainder)
+        if scalar is None:
+            return None, "uses value has an invalid quoted scalar"
+        trailing = remainder[consumed:].strip()
+        if trailing and trailing[0] not in {",", "}"}:
+            return None, "uses value has unsupported trailing YAML"
+        return scalar, None
+    end = len(remainder)
+    for delimiter in (",", "}"):
+        position = remainder.find(delimiter)
+        if position >= 0:
+            end = min(end, position)
+    scalar = remainder[:end].strip()
+    if not scalar or scalar[0] in {"|", ">", "*", "&", "[", "{"}:
+        return None, "uses value is not a literal scalar"
+    return scalar, None
+
+
+def _flow_mapping_starts(value: str) -> Iterator[int]:
+    single = False
+    double = False
+    escaped = False
+    depth = 0
+    for index, character in enumerate(value):
+        if double and character == "\\" and not escaped:
+            escaped = True
+            continue
+        if character == '"' and not single and not escaped:
+            double = not double
+        elif character == "'" and not double:
+            single = not single
+        elif not single and not double:
+            if character == "{":
+                depth += 1
+                yield index + 1
+            elif character == "}":
+                depth = max(0, depth - 1)
+            elif character == "," and depth:
+                yield index + 1
+        escaped = False
+
+
+def _inspect_workflow(text: str) -> WorkflowInspection:
+    references: list[str] = []
+    errors: list[str] = []
+    block_scalar_indent: int | None = None
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        if not raw_line.strip():
+            continue
+        indentation = len(raw_line) - len(raw_line.lstrip(" "))
+        if block_scalar_indent is not None:
+            if indentation > block_scalar_indent:
+                continue
+            block_scalar_indent = None
+        line = _strip_yaml_comment(raw_line).rstrip()
+        if not line.strip():
+            continue
+        normal = _mapping_key_at(line, 0, sequence=True)
+        if normal is not None:
+            key, value_start = normal
+            remainder = line[value_start:].lstrip()
+            if key != "uses" and remainder.startswith(("|", ">")):
+                block_scalar_indent = indentation
+            if key == "uses":
+                reference, error = _mapping_scalar(line, value_start)
+                if error:
+                    errors.append(f"line {line_number}: {error}")
+                elif reference is not None:
+                    references.append(reference)
+        for start in _flow_mapping_starts(line):
+            mapping = _mapping_key_at(line, start, sequence=False)
+            if mapping is None or mapping[0] != "uses":
+                continue
+            reference, error = _mapping_scalar(line, mapping[1])
+            if error:
+                errors.append(f"line {line_number}: {error}")
+            elif reference is not None:
+                references.append(reference)
+    return WorkflowInspection(tuple(references), tuple(errors))
 
 
 def _ci_workflows(root: Path, _: str) -> Finding:
@@ -194,28 +592,34 @@ def _ci_immutable_actions(root: Path, _: str) -> Finding:
     paths = _workflow_paths(root)
     references: list[tuple[str, str]] = []
     mutable: list[tuple[str, str]] = []
+    parse_errors: list[tuple[str, str]] = []
     for path in paths:
-        content = path.read_text(encoding="utf-8")
-        for reference in ACTION_USE.findall(content):
-            relative = path.relative_to(root).as_posix()
+        relative = path.relative_to(root).as_posix()
+        content = _read_repository_text(root, relative)
+        if content is None:
+            continue
+        inspection = _inspect_workflow(content)
+        parse_errors.extend((relative, error) for error in inspection.errors)
+        for reference in inspection.references:
             references.append((relative, reference))
             if reference.startswith("./"):
                 continue
             if reference.startswith("docker://"):
-                if "@sha256:" not in reference:
+                if DOCKER_DIGEST.fullmatch(reference) is None:
                     mutable.append((relative, reference))
                 continue
-            _, separator, revision = reference.rpartition("@")
-            if not separator or re.fullmatch(r"[0-9a-fA-F]{40}", revision) is None:
+            action, separator, revision = reference.rpartition("@")
+            if not separator or not action or FULL_COMMIT_SHA.fullmatch(revision) is None:
                 mutable.append((relative, reference))
     if not paths:
         status, severity = "not-applicable", "info"
-    elif mutable:
+    elif mutable or parse_errors:
         status, severity = "fail", "high"
     else:
         status, severity = "pass", "info"
     evidence = [Evidence("action-summary", ".github/workflows", f"references={len(references)}")]
     evidence.extend(Evidence("mutable-action", path, reference) for path, reference in mutable)
+    evidence.extend(Evidence("workflow-parse-error", path, error) for path, error in parse_errors)
     return _finding(
         "ci.immutable-actions",
         "ci",
@@ -254,29 +658,40 @@ def _security_updates(root: Path, _: str) -> Finding:
 
 def _security_code_scanning(root: Path, _: str) -> Finding:
     paths = _workflow_paths(root)
-    matched = tuple(
-        path.relative_to(root).as_posix()
-        for path in paths
-        if "github/codeql-action" in path.read_text(encoding="utf-8")
-    )
+    matched: list[str] = []
+    parse_errors: list[tuple[str, str]] = []
+    for path in paths:
+        relative = path.relative_to(root).as_posix()
+        content = _read_repository_text(root, relative)
+        if content is None:
+            continue
+        inspection = _inspect_workflow(content)
+        parse_errors.extend((relative, error) for error in inspection.errors)
+        if any(
+            reference.partition("@")[0].startswith("github/codeql-action/")
+            for reference in inspection.references
+        ):
+            matched.append(relative)
+    evidence = [Evidence("workflow-set", ".github/workflows", ", ".join(matched) or "none found")]
+    evidence.extend(Evidence("workflow-parse-error", path, error) for path, error in parse_errors)
     return _finding(
         "security.code-scanning",
         "security",
-        "pass" if matched else "warn",
-        "info" if matched else "medium",
+        "pass" if matched and not parse_errors else "warn",
+        "info" if matched and not parse_errors else "medium",
         "Code scanning",
         "The repository declares a CodeQL workflow as a visible code-scanning signal.",
-        [Evidence("workflow-set", ".github/workflows", ", ".join(matched) or "none found")],
+        evidence,
         "Configure code scanning appropriate to the repository languages and threat model.",
     )
 
 
 def _testing_primary_check(root: Path, _: str) -> Finding:
-    contract_path = root / "harness/project.yaml"
     command = ""
-    if contract_path.is_file():
+    content = _read_repository_text(root, "harness/project.yaml")
+    if content is not None:
         try:
-            payload = json.loads(contract_path.read_text(encoding="utf-8"))
+            payload = json.loads(content)
             command = payload["engineering"]["command_contract"]["primary_check"]
         except (KeyError, TypeError, json.JSONDecodeError):
             command = ""
@@ -294,14 +709,21 @@ def _testing_primary_check(root: Path, _: str) -> Finding:
 
 def _testing_suite(root: Path, _: str) -> Finding:
     patterns = ("test_*.py", "*_test.py", "*.test.ts", "*.test.js", "*.spec.ts", "*.spec.js")
-    tests = tuple(
-        sorted(
-            path.relative_to(root).as_posix()
-            for pattern in patterns
-            for path in root.glob(f"tests/**/{pattern}")
-            if path.is_file()
-        )
-    )
+    tests: list[str] = []
+    tests_root = _safe_directory(root, "tests")
+    if tests_root is not None:
+        try:
+            for directory, names, filenames in os.walk(tests_root, followlinks=False):
+                names[:] = sorted(name for name in names if not Path(directory, name).is_symlink())
+                for filename in sorted(filenames):
+                    path = Path(directory, filename)
+                    relative = path.relative_to(root).as_posix()
+                    if _safe_kind(root, relative) != "file":
+                        continue
+                    if any(path.match(pattern) for pattern in patterns):
+                        tests.append(relative)
+        except OSError as exc:
+            raise AuditError(f"cannot inspect repository tests: {exc}") from exc
     return _finding(
         "testing.suite",
         "testing",
@@ -315,9 +737,8 @@ def _testing_suite(root: Path, _: str) -> Finding:
 
 
 def _agent_instruction_quality(root: Path, _: str) -> Finding:
-    path = root / "AGENTS.md"
     required_signals = ("source", "test", "safety", "verification")
-    content = path.read_text(encoding="utf-8").lower() if path.is_file() else ""
+    content = (_read_repository_text(root, "AGENTS.md") or "").lower()
     present = tuple(signal for signal in required_signals if signal in content)
     return _finding(
         "agent-readiness.instructions",
@@ -331,16 +752,53 @@ def _agent_instruction_quality(root: Path, _: str) -> Finding:
     )
 
 
-def _parse_skill_frontmatter(path: Path) -> tuple[str, str] | None:
-    content = path.read_text(encoding="utf-8")
+def _frontmatter_scalar(value: str) -> str | None:
+    value = _strip_yaml_comment(value).strip()
+    if not value:
+        return None
+    if value[0] in {"'", '"'}:
+        scalar, consumed = _quoted_scalar(value)
+        if scalar is None or value[consumed:].strip():
+            return None
+        return scalar
+    if value[0] in {"|", ">", "[", "{", "*", "&"}:
+        return None
+    return value
+
+
+def _parse_skill_frontmatter(root: Path, relative: str) -> tuple[str, str] | None:
+    content = _read_repository_text(root, relative)
+    if content is None:
+        return None
     if not content.startswith("---\n") or "\n---\n" not in content[4:]:
         return None
     header = content[4:].split("\n---\n", 1)[0]
     values: dict[str, str] = {}
-    for line in header.splitlines():
+    lines = header.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        index += 1
         key, separator, value = line.partition(":")
         if separator and key.strip() in {"name", "description"}:
-            values[key.strip()] = value.strip()
+            raw_value = _strip_yaml_comment(value).strip()
+            if raw_value.startswith(("|", ">")):
+                indentation = len(line) - len(line.lstrip(" "))
+                block: list[str] = []
+                while index < len(lines):
+                    child = lines[index]
+                    child_indentation = len(child) - len(child.lstrip(" "))
+                    if child.strip() and child_indentation <= indentation:
+                        break
+                    block.append(child.strip())
+                    index += 1
+                separator_text = "\n" if raw_value.startswith("|") else " "
+                scalar = separator_text.join(block).strip()
+            else:
+                scalar = _frontmatter_scalar(value)
+            if scalar is None:
+                return None
+            values[key.strip()] = scalar
     name = values.get("name", "")
     description = values.get("description", "")
     if not SKILL_NAME.fullmatch(name) or not description:
@@ -349,12 +807,20 @@ def _parse_skill_frontmatter(path: Path) -> tuple[str, str] | None:
 
 
 def _agent_skills(root: Path, _: str) -> Finding:
-    paths = tuple(sorted(root.glob(".agents/skills/*/SKILL.md")))
-    invalid = tuple(
-        path.relative_to(root).as_posix()
-        for path in paths
-        if _parse_skill_frontmatter(path) is None
-    )
+    paths: list[str] = []
+    skills_root = _safe_directory(root, ".agents/skills")
+    if skills_root is not None:
+        try:
+            for skill_directory in sorted(skills_root.iterdir(), key=lambda item: item.name):
+                relative_directory = skill_directory.relative_to(root).as_posix()
+                if _safe_kind(root, relative_directory) != "directory":
+                    continue
+                relative = f"{relative_directory}/SKILL.md"
+                if _safe_regular_file(root, relative) is not None:
+                    paths.append(relative)
+        except OSError as exc:
+            raise AuditError(f"cannot inspect repository skills: {exc}") from exc
+    invalid = tuple(path for path in paths if _parse_skill_frontmatter(root, path) is None)
     if not paths:
         status, severity = "warn", "low"
     elif invalid:
@@ -398,7 +864,7 @@ def load_config(path: Path | None) -> AuditConfig:
         return AuditConfig()
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise AuditError(f"cannot read configuration: {exc}") from exc
     if not isinstance(payload, dict):
         raise AuditError("configuration must be a JSON object")
@@ -410,6 +876,8 @@ def load_config(path: Path | None) -> AuditConfig:
     disabled = payload.get("disabled_checks", [])
     if not isinstance(disabled, list) or any(not isinstance(item, str) for item in disabled):
         raise AuditError("disabled_checks must be an array of strings")
+    if len(disabled) != len(set(disabled)):
+        raise AuditError("disabled_checks must contain unique check IDs")
     unknown_checks = sorted(set(disabled) - CHECK_IDS)
     if unknown_checks:
         raise AuditError(f"unknown disabled checks: {', '.join(unknown_checks)}")
@@ -419,16 +887,25 @@ def load_config(path: Path | None) -> AuditConfig:
 def audit_repository(target: Path, config: AuditConfig | None = None) -> Report:
     """Audit one repository root without intentionally writing to it."""
 
-    root = target.expanduser().resolve()
-    if not root.is_dir():
-        raise AuditError(f"target is not a directory: {root}")
-    active_config = config or AuditConfig()
-    target_state, status_text = _target_state(root)
-    findings = tuple(
-        check(root, status_text)
-        for finding_id, check in CHECKS
-        if finding_id not in active_config.disabled_checks
-    )
+    try:
+        expanded = target.expanduser()
+        try:
+            root = expanded.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise AuditError(f"target is not a directory: {expanded.resolve()}") from exc
+        if not root.is_dir():
+            raise AuditError(f"target is not a directory: {root}")
+        active_config = config or AuditConfig()
+        target_state, status_text = _target_state(root)
+        findings = tuple(
+            check(root, status_text)
+            for finding_id, check in CHECKS
+            if finding_id not in active_config.disabled_checks
+        )
+    except AuditError:
+        raise
+    except (OSError, UnicodeError, subprocess.TimeoutExpired) as exc:
+        raise AuditError(f"cannot audit repository safely: {exc}") from exc
     return Report(
         tool_name="agentic-repo-auditor",
         tool_version=__version__,

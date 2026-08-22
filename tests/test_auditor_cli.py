@@ -85,6 +85,27 @@ class AuditorCliTests(unittest.TestCase):
         self.assertEqual(2, missing.returncode)
         self.assertIn("target is not a directory", missing.stderr)
 
+    def test_invalid_utf8_inputs_return_two_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            boundary = Path(directory)
+            target = boundary / "fixture"
+            target.mkdir()
+            initialize_repository(target)
+            (target / ".github/workflows/check.yml").write_bytes(b"uses: \xff\n")
+            workflow = self.run_cli("audit", str(target), "--format", "json")
+            config_path = boundary / "config.json"
+            config_path.write_bytes(b"\xff")
+            config = self.run_cli(
+                "audit", str(target), "--config", str(config_path), "--format", "json"
+            )
+
+        self.assertEqual(2, workflow.returncode)
+        self.assertNotIn("Traceback", workflow.stderr)
+        self.assertIn("not valid UTF-8", workflow.stderr)
+        self.assertEqual(2, config.returncode)
+        self.assertNotIn("Traceback", config.stderr)
+        self.assertIn("cannot read configuration", config.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

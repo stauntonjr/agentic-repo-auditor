@@ -99,6 +99,6 @@ That last need is valuable but belongs to a companion full-application assessmen
 
 ## Security and privacy
 
-Repository paths and configuration can be sensitive. The core runs locally, has no runtime dependencies, and performs no network calls. Reports intentionally omit absolute target paths, but evidence can still reveal filenames and security gaps. Treat reports according to the source repository's classification.
+Repository paths and configuration can be sensitive. The core runs locally, has no runtime dependencies, and performs no network calls. Git inspection disables repository-configured filesystem monitors, hooks, optional locks, and lazy object fetching. Evidence collection does not follow repository symlinks, and the state ID fingerprints dirty index/worktree content rather than only path names. Reports intentionally omit absolute target paths, but evidence can still reveal filenames and security gaps. Treat reports according to the source repository's classification.
 
 Report vulnerabilities using [SECURITY.md](SECURITY.md). The project is licensed under MIT; see [LICENSE](LICENSE).

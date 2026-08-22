@@ -94,7 +94,7 @@
         "configuration schema",
         "JSON report schema"
       ],
-      "source": "harness/project.yaml:engineering.versioning.current",
+      "source": "pyproject.toml:project.version",
       "tag_prefix": "v",
       "pre_1_0_policy": "breaking-changes-bump-minor",
       "release_notes": "CHANGELOG.md"

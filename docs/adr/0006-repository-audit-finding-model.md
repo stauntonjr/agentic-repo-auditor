@@ -18,14 +18,16 @@ The current unknown is whether downstream users will require SARIF or organizati
 Use a small product-owned report schema for v0.1 with:
 
 - a versioned report and tool identity;
-- a deterministic target state derived from repository name, commit, branch, and porcelain status;
+- a deterministic target state derived from repository name, commit, branch, index state, and content fingerprints for dirty, untracked, symlink, hidden-index, and nested-repository entries;
 - stable finding IDs;
 - explicit category, status, severity, title, description, evidence, and remediation;
 - deterministic finding and evidence ordering;
 - summary counts without an aggregate numeric readiness score; and
 - JSON as the canonical machine representation with Markdown as a deterministic rendering.
 
-The offline core may read only the requested repository and execute read-only Git commands with optional locks disabled. It must not require credentials, model calls, network access, or runtime dependencies. GitHub, OpenSSF, SARIF, and other integrations remain adapters or exporters outside the core.
+The offline core may read content evidence only from non-symlink regular files inside the requested worktree. Git may read the repository's own metadata, including external worktree metadata, but is invoked with optional locks, repository-configured filesystem monitors and hooks, and lazy fetching disabled. The core must not require credentials, model calls, network access, or runtime dependencies. GitHub, OpenSSF, SARIF, and other integrations remain adapters or exporters outside the core.
+
+Workflow references are extracted with a conservative YAML-aware scanner that understands block mappings, quoted keys and values, flow mappings, comments, and block scalars. Ambiguous `uses` values fail closed. It is intentionally not a general YAML loader and never constructs repository-controlled objects.
 
 The first categories are governance, Git, CI, security, testing, and agent readiness. A check may report `pass`, `warn`, `fail`, `not-applicable`, or `unknown`. Live settings that cannot be observed locally must not be inferred from repository files.
 
@@ -52,7 +54,7 @@ Full application behavior, architecture, data-flow, and runtime assessment is in
 - Risk: users treat findings as compliance claims. Mitigation: keep evidence explicit, avoid a numeric score, and label unavailable evidence unknown or deferred.
 - Risk: stable IDs change casually. Mitigation: treat IDs and JSON shape as SemVer-governed public contracts.
 - Risk: checks duplicate OpenSSF behavior poorly. Mitigation: limit v0.1 to visible configuration signals and document external mappings rather than copied scoring.
-- Risk: auditing changes the target. Mitigation: disable optional Git locks and test complete target snapshots before and after CLI runs.
+- Risk: auditing executes repository-controlled helpers or changes the target. Mitigation: override fsmonitor and hooks, disable optional locks and lazy fetching, reject symlinked evidence, and test adversarial sentinels plus complete target snapshots before and after CLI runs.
 
 ## Alternatives considered
 
