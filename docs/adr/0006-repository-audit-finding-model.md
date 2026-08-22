@@ -55,7 +55,7 @@ Full application behavior, architecture, data-flow, and runtime assessment is in
 - Risk: stable IDs change casually. Mitigation: treat IDs and JSON shape as SemVer-governed public contracts.
 - Risk: checks duplicate OpenSSF behavior poorly. Mitigation: limit v0.1 to visible configuration signals and document external mappings rather than copied scoring.
 - Risk: auditing executes repository-controlled helpers or changes the target. Mitigation: override fsmonitor, hooks, and discovered content filters; disable optional locks and lazy fetching; reject symlinked evidence; and test adversarial executable sentinels plus complete target snapshots before and after CLI runs.
-- Risk: nested repository worktree content stays constant while its HEAD or index changes. Mitigation: bind nested and gitlink HEAD, full-index digest, recursive gitlinks, and non-Git-metadata worktree content into the outer state ID.
+- Risk: nested repository worktree content stays constant while its HEAD or index changes. Mitigation: bind nested and gitlink HEAD, staged index entries, assume-unchanged and skip-worktree flags, recursive gitlinks, and non-Git-metadata worktree content into the outer state ID.
 
 ## Alternatives considered
 

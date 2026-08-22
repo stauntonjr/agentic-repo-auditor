@@ -326,6 +326,29 @@ class AuditorTests(unittest.TestCase):
                 check=True,
                 stdout=subprocess.PIPE,
             )
+            clean_gitlink = audit_repository(root).target.state_id
+            subprocess.run(
+                ["git", "update-index", "--assume-unchanged", ".gitattributes"],
+                cwd=nested,
+                check=True,
+            )
+            clean_assume_unchanged = audit_repository(root).target.state_id
+            subprocess.run(
+                ["git", "update-index", "--no-assume-unchanged", ".gitattributes"],
+                cwd=nested,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "update-index", "--skip-worktree", ".gitattributes"],
+                cwd=nested,
+                check=True,
+            )
+            clean_skip_worktree = audit_repository(root).target.state_id
+            subprocess.run(
+                ["git", "update-index", "--no-skip-worktree", ".gitattributes"],
+                cwd=nested,
+                check=True,
+            )
             sentinel = Path(directory) / "nested-filter-fired"
             driver = nested / "filter.sh"
             driver.write_text(f"#!/bin/sh\ntouch '{sentinel}'\ncat\n", encoding="utf-8")
@@ -364,9 +387,30 @@ class AuditorTests(unittest.TestCase):
                     first = state_id
                 else:
                     second = state_id
+            subprocess.run(
+                ["git", "update-index", "--assume-unchanged", ".gitattributes"],
+                cwd=nested,
+                check=True,
+            )
+            assume_unchanged = audit_repository(root).target.state_id
+            subprocess.run(
+                ["git", "update-index", "--no-assume-unchanged", ".gitattributes"],
+                cwd=nested,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "update-index", "--skip-worktree", ".gitattributes"],
+                cwd=nested,
+                check=True,
+            )
+            skip_worktree = audit_repository(root).target.state_id
             self.assertFalse(sentinel.exists())
 
         self.assertNotEqual(first, second)
+        self.assertNotEqual(clean_gitlink, clean_assume_unchanged)
+        self.assertNotEqual(clean_assume_unchanged, clean_skip_worktree)
+        self.assertNotEqual(second, assume_unchanged)
+        self.assertNotEqual(assume_unchanged, skip_worktree)
 
     def test_repository_configured_fsmonitor_is_never_executed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -15,7 +15,7 @@ All notable product changes are recorded here. Product and harness versions are 
 
 - Reconciled the generated template identity with Agentic Repo Auditor.
 - Hardened Git collection against repository-configured fsmonitor, hook, and content-filter execution plus lazy fetching.
-- Bound target state IDs to dirty index/worktree content, symlinks, hidden-index entries, and nested repository HEAD/index/worktree state.
+- Bound target state IDs to dirty index/worktree content, symlinks, hidden-index entries, and nested repository HEAD/staged-entry/hidden-flag/worktree state.
 - Added conservative YAML-aware workflow reference extraction and repository-contained file reads.
 
 ## Harness baseline [0.4.0] - 2026-08-22

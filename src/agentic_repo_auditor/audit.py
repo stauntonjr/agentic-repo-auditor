@@ -302,6 +302,7 @@ def _nested_repository_metadata(root: Path) -> dict[str, Any] | None:
         return {
             "head": head,
             "index": hashlib.sha256(index.encode("utf-8")).hexdigest(),
+            "index_flags": _hidden_index_paths(repository),
             "gitlinks": sorted(children, key=lambda item: item["path"]),
         }
 
@@ -431,6 +432,23 @@ def _state_entries(root: Path, status_text: str) -> list[dict[str, Any]]:
                 "worktree": _fingerprint_worktree_path(root, relative),
                 "index": hashlib.sha256(index_state.encode("utf-8")).hexdigest(),
                 "index_flags": list(flags),
+            }
+        )
+        seen.add(relative)
+    full_index = _git(root, "ls-files", "--stage", "-z")
+    for token in full_index.split("\0"):
+        if not token:
+            continue
+        metadata, separator, relative = token.partition("\t")
+        if not separator or not metadata.startswith("160000 ") or relative in seen:
+            continue
+        entries.append(
+            {
+                "path": relative,
+                "status": "gitlink-monitored",
+                "worktree": _fingerprint_worktree_path(root, relative),
+                "index": hashlib.sha256(token.encode("utf-8")).hexdigest(),
+                "index_flags": list(flags_by_path.get(relative, ())),
             }
         )
     return sorted(entries, key=lambda item: (item["path"], item["status"]))
