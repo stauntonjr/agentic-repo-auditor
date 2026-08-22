@@ -28,6 +28,7 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Stable finding IDs, explicit status and severity, evidence, remediation, and target state identity.
 - Governance, Git, CI, security, testing, and agent-readiness checks.
 - Configurable check suppression with fail-closed validation.
+- Bounded semantic YAML parsing for workflows and Skill metadata through pinned PyYAML 6.0.2.
 - CLI exit thresholds for advisory and gating use.
 - Clean-install wheel and installed-entrypoint smoke boundary.
 - Primary-source landscape research and proposed ADR-0006.

@@ -17,6 +17,8 @@ All notable product changes are recorded here. Product and harness versions are 
 - Hardened Git collection against repository-configured fsmonitor, hook, and content-filter execution plus lazy fetching.
 - Bound target state IDs to dirty index/worktree content, symlinks, hidden-index entries, and nested repository HEAD/staged-entry/hidden-flag/worktree state.
 - Added conservative YAML-aware workflow reference extraction and repository-contained file reads.
+- Replaced the provisional YAML subset with bounded PyYAML semantic parsing for workflows and Skill frontmatter.
+- Enforced top-level Skill metadata, directory/name equality, specification length limits, and CRLF compatibility.
 
 ## Harness baseline [0.4.0] - 2026-08-22
 

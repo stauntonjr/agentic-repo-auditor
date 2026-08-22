@@ -14,10 +14,15 @@ import venv
 
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_RUNTIME_DEPENDENCIES = ["PyYAML==6.0.2"]
 
 
 def expected_version() -> str:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    if project["project"].get("dependencies") != EXPECTED_RUNTIME_DEPENDENCIES:
+        raise RuntimeError(
+            "pyproject.toml runtime dependencies differ from the reviewed pinned set"
+        )
     version = project["project"]["version"]
     if not isinstance(version, str) or not version:
         raise RuntimeError("pyproject.toml project.version must be a non-empty string")
@@ -81,7 +86,7 @@ def main() -> int:
             "agentic-repo-auditor.exe" if sys.platform == "win32" else "agentic-repo-auditor"
         )
         subprocess.run(
-            [str(python), "-m", "pip", "install", "--no-index", "--no-deps", str(wheels[0])],
+            ["uv", "pip", "install", "--python", str(python), str(wheels[0])],
             check=True,
             stdout=subprocess.PIPE,
         )
@@ -93,6 +98,16 @@ def main() -> int:
                 str(python),
                 "-c",
                 "from importlib.metadata import version; print(version('agentic-repo-auditor'))",
+            ],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
+        yaml_version = subprocess.run(
+            [
+                str(python),
+                "-c",
+                "from importlib.metadata import version; print(version('PyYAML'))",
             ],
             check=True,
             text=True,
@@ -111,6 +126,10 @@ def main() -> int:
     if distribution_version != version_expected:
         raise RuntimeError(
             f"installed distribution version {distribution_version} differs from {version_expected}"
+        )
+    if yaml_version != "6.0.2":
+        raise RuntimeError(
+            f"installed PyYAML version differs from the reviewed pin: {yaml_version}"
         )
     if version != f"agentic-repo-auditor {version_expected}":
         raise RuntimeError(f"unexpected CLI version: {version}")

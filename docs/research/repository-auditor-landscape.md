@@ -3,7 +3,7 @@
 - Decision: define the v0.1 audit boundary and finding/evidence model without duplicating established scanners.
 - Search date: 2026-08-22.
 - Scope: local repository governance, Git, CI, security configuration, testing, and agent-readiness evidence.
-- Constraints: read-only by default, deterministic output, no model calls, no runtime dependency, potentially confidential local inputs, and portable JSON/Markdown reports.
+- Constraints: read-only by default, deterministic output, no model calls, minimal justified runtime dependencies, potentially confidential local inputs, and portable JSON/Markdown reports.
 - Stop condition: enough primary evidence to choose build, adopt, adapt, and defer boundaries for the first CLI slice.
 
 ## Source selection and queries
@@ -19,8 +19,9 @@ Primary sources were preferred: standards bodies, official product documentation
 | [SARIF 2.1.0 plus Errata 01](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) | OASIS standard, 2023-08-28; repository `ed71d4f62db866ce3698a08a5ec3f7f2e775545d` | OASIS standard and normative schemas | Rich static-analysis interchange, stable fingerprints, locations, baselines | Adapt stable IDs and evidence concepts; defer a conforming exporter |
 | [AGENTS.md](https://agents.md/) | Canonical repository `d1ac7f063d20e70015ed6732664049ae4ba9d74e` | MIT | Portable repository instruction discovery | Adopt filename discovery; assess content signals without imposing one prose template |
 | [Agent Skills specification](https://github.com/agentskills/agentskills/blob/main/docs/specification.mdx) | `69ef37e9424c0a7ea9dd2293b559e43ec8176379` | Apache-2.0 | `SKILL.md` structure and metadata constraints | Adapt a shallow structural check; defer full conformance to the reference validator |
+| [PyYAML](https://github.com/yaml/pyyaml/tree/6.0.2) | 6.0.2; commit `41309b0bcb4559edb1d691d47199035ef539d785` | MIT, canonical repository | Safe YAML composition/loading across equivalent YAML syntax | Adopt as the sole pinned runtime parser after valid YAML forms defeated the provisional subset |
 
-Maintenance was current at inspection time for all five canonical repositories. Those facts can drift; revisions above pin what was reviewed.
+Maintenance was current at inspection time for the listed canonical repositories. Those facts can drift; revisions above pin what was reviewed.
 
 ## Evidence-backed findings
 
@@ -34,11 +35,11 @@ Maintenance was current at inspection time for all five canonical repositories. 
 
 ### Build
 
-Build a dependency-free local collector and a small versioned report schema. Use stable finding IDs, explicit status/severity, evidence records, content-bound target state identity, deterministic ordering, repository-contained evidence reads, and separate renderers. For the narrow workflow checks, use conservative YAML-aware extraction that fails closed rather than constructing arbitrary repository-controlled objects. This is the smallest option that satisfies the accepted product contract.
+Build a small local collector and versioned report schema. Use stable finding IDs, explicit status/severity, evidence records, content-bound target state identity, deterministic ordering, repository-contained evidence reads, and separate renderers. Adopt one pinned safe YAML parser because equivalent block, flow, explicit-key, alias, and multiline forms cannot be handled reliably by a regular-expression subset. This is the smallest option that satisfies the accepted product contract.
 
 ### Adopt
 
-Adopt established filenames and specification identifiers as references: AGENTS.md, SKILL.md, OSPS control IDs, and GitHub metadata names. Adoption means interoperable vocabulary, not copied implementation.
+Adopt established filenames and specification identifiers as references: AGENTS.md, SKILL.md, OSPS control IDs, and GitHub metadata names. Adopt pinned PyYAML 6.0.2 for semantic workflow and Skill-frontmatter parsing, with bounded input and safe loaders. Other adoption means interoperable vocabulary, not copied implementation.
 
 ### Adapt
 
@@ -54,6 +55,6 @@ Adapt SARIF's stable identity and provenance principles and OpenSSF's separation
 
 ## Recommendation
 
-Build the deterministic offline core and custom v1 report now. Keep collectors, finding model, and renderers separate so future adapters can add external evidence without changing core semantics. Do not assign a universal numeric grade. Map external framework identifiers only when evidence and version are explicit. Treat SARIF as an optional future export, not the canonical internal model.
+Build the deterministic offline core and custom v1 report now with PyYAML as its sole pinned runtime dependency. Keep collectors, finding model, and renderers separate so future adapters can add external evidence without changing core semantics. Do not assign a universal numeric grade. Map external framework identifiers only when evidence and version are explicit. Treat SARIF as an optional future export, not the canonical internal model.
 
 Confidence is high for the v0.1 boundary and medium for future interoperability. The first spike must prove byte-identical output, no target-tree changes, clean-install CLI behavior, mutable Action detection, and useful results on both this template and a mature existing repository.

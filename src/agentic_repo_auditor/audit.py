@@ -10,7 +10,15 @@ import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any, Callable
+
+import yaml  # pyright: ignore[reportMissingModuleSource]
+from yaml.nodes import (  # pyright: ignore[reportMissingModuleSource]
+    MappingNode,
+    Node,
+    ScalarNode,
+    SequenceNode,
+)
 
 from . import __version__
 from .model import Evidence, Finding, Report, TargetState
@@ -32,6 +40,8 @@ FULL_COMMIT_SHA = re.compile(r"^[0-9a-fA-F]{40}$")
 DOCKER_DIGEST = re.compile(r"^docker://[^\s@]+@sha256:[0-9a-fA-F]{64}$")
 MAX_EVIDENCE_BYTES = 2 * 1024 * 1024
 MAX_NESTED_REPOSITORIES = 128
+MAX_YAML_NODES = 20_000
+MAX_YAML_DEPTH = 100
 FILTER_KEY = re.compile(r"^filter\.(.+)\.(?:clean|smudge|process|required)$", re.IGNORECASE)
 
 
@@ -587,162 +597,43 @@ def _workflow_paths(root: Path) -> tuple[Path, ...]:
     return paths
 
 
-def _strip_yaml_comment(value: str) -> str:
-    single = False
-    double = False
-    escaped = False
-    for index, character in enumerate(value):
-        if double and character == "\\" and not escaped:
-            escaped = True
-            continue
-        if character == '"' and not single and not escaped:
-            double = not double
-        elif character == "'" and not double:
-            if single and index + 1 < len(value) and value[index + 1] == "'":
-                continue
-            single = not single
-        elif character == "#" and not single and not double:
-            if index == 0 or value[index - 1].isspace():
-                return value[:index]
-        escaped = False
-    return value
-
-
-def _quoted_scalar(value: str) -> tuple[str | None, int]:
-    quote = value[0]
-    index = 1
-    result: list[str] = []
-    while index < len(value):
-        character = value[index]
-        if quote == "'" and character == "'":
-            if index + 1 < len(value) and value[index + 1] == "'":
-                result.append("'")
-                index += 2
-                continue
-            return "".join(result), index + 1
-        if quote == '"' and character == '"':
-            token = value[: index + 1]
-            try:
-                decoded = json.loads(token)
-            except json.JSONDecodeError:
-                return None, index + 1
-            return decoded if isinstance(decoded, str) else None, index + 1
-        result.append(character)
-        index += 1
-    return None, len(value)
-
-
-def _mapping_key_at(value: str, start: int, *, sequence: bool) -> tuple[str, int] | None:
-    index = start
-    while index < len(value) and value[index].isspace():
-        index += 1
-    if sequence and index < len(value) and value[index] == "-":
-        index += 1
-        while index < len(value) and value[index].isspace():
-            index += 1
-    if index >= len(value):
-        return None
-    if value[index] in {"'", '"'}:
-        key, consumed = _quoted_scalar(value[index:])
-        if key is None:
-            return None
-        index += consumed
-    else:
-        match = re.match(r"[A-Za-z0-9_.-]+", value[index:])
-        if match is None:
-            return None
-        key = match.group(0)
-        index += len(key)
-    while index < len(value) and value[index].isspace():
-        index += 1
-    if index >= len(value) or value[index] != ":":
-        return None
-    return key, index + 1
-
-
-def _mapping_scalar(value: str, start: int) -> tuple[str | None, str | None]:
-    remainder = value[start:].lstrip()
-    if not remainder:
-        return None, "uses value is empty"
-    if remainder[0] in {"'", '"'}:
-        scalar, consumed = _quoted_scalar(remainder)
-        if scalar is None:
-            return None, "uses value has an invalid quoted scalar"
-        trailing = remainder[consumed:].strip()
-        if trailing and trailing[0] not in {",", "}"}:
-            return None, "uses value has unsupported trailing YAML"
-        return scalar, None
-    end = len(remainder)
-    for delimiter in (",", "}"):
-        position = remainder.find(delimiter)
-        if position >= 0:
-            end = min(end, position)
-    scalar = remainder[:end].strip()
-    if not scalar or scalar[0] in {"|", ">", "*", "&", "[", "{"}:
-        return None, "uses value is not a literal scalar"
-    return scalar, None
-
-
-def _flow_mapping_starts(value: str) -> Iterator[int]:
-    single = False
-    double = False
-    escaped = False
-    depth = 0
-    for index, character in enumerate(value):
-        if double and character == "\\" and not escaped:
-            escaped = True
-            continue
-        if character == '"' and not single and not escaped:
-            double = not double
-        elif character == "'" and not double:
-            single = not single
-        elif not single and not double:
-            if character == "{":
-                depth += 1
-                yield index + 1
-            elif character == "}":
-                depth = max(0, depth - 1)
-            elif character == "," and depth:
-                yield index + 1
-        escaped = False
-
-
 def _inspect_workflow(text: str) -> WorkflowInspection:
     references: list[str] = []
     errors: list[str] = []
-    block_scalar_indent: int | None = None
-    for line_number, raw_line in enumerate(text.splitlines(), start=1):
-        if not raw_line.strip():
-            continue
-        indentation = len(raw_line) - len(raw_line.lstrip(" "))
-        if block_scalar_indent is not None:
-            if indentation > block_scalar_indent:
-                continue
-            block_scalar_indent = None
-        line = _strip_yaml_comment(raw_line).rstrip()
-        if not line.strip():
-            continue
-        normal = _mapping_key_at(line, 0, sequence=True)
-        if normal is not None:
-            key, value_start = normal
-            remainder = line[value_start:].lstrip()
-            if key != "uses" and remainder.startswith(("|", ">")):
-                block_scalar_indent = indentation
-            if key == "uses":
-                reference, error = _mapping_scalar(line, value_start)
-                if error:
-                    errors.append(f"line {line_number}: {error}")
-                elif reference is not None:
-                    references.append(reference)
-        for start in _flow_mapping_starts(line):
-            mapping = _mapping_key_at(line, start, sequence=False)
-            if mapping is None or mapping[0] != "uses":
-                continue
-            reference, error = _mapping_scalar(line, mapping[1])
-            if error:
-                errors.append(f"line {line_number}: {error}")
-            elif reference is not None:
-                references.append(reference)
+    try:
+        document = yaml.compose(text, Loader=yaml.SafeLoader)
+    except (yaml.YAMLError, RecursionError) as exc:
+        mark = getattr(exc, "problem_mark", None)
+        location = f"line {mark.line + 1}: " if mark is not None else ""
+        return WorkflowInspection((), (f"{location}invalid YAML: {exc}",))
+    if document is None:
+        return WorkflowInspection((), ())
+    visited: set[int] = set()
+
+    def visit(node: Node, depth: int = 0) -> None:
+        if depth > MAX_YAML_DEPTH:
+            raise AuditError("workflow YAML exceeds the safe nesting limit")
+        identity = id(node)
+        if identity in visited:
+            return
+        visited.add(identity)
+        if len(visited) > MAX_YAML_NODES:
+            raise AuditError("workflow YAML exceeds the safe node limit")
+        if isinstance(node, MappingNode):
+            for key, value in node.value:
+                if isinstance(key, ScalarNode) and key.value == "uses":
+                    if isinstance(value, ScalarNode) and value.tag.endswith(":str"):
+                        references.append(value.value)
+                    else:
+                        errors.append(
+                            f"line {value.start_mark.line + 1}: uses value must be a string"
+                        )
+                visit(value, depth + 1)
+        elif isinstance(node, SequenceNode):
+            for value in node.value:
+                visit(value, depth + 1)
+
+    visit(document)
     return WorkflowInspection(tuple(references), tuple(errors))
 
 
@@ -924,56 +815,35 @@ def _agent_instruction_quality(root: Path, _: str) -> Finding:
     )
 
 
-def _frontmatter_scalar(value: str) -> str | None:
-    value = _strip_yaml_comment(value).strip()
-    if not value:
-        return None
-    if value[0] in {"'", '"'}:
-        scalar, consumed = _quoted_scalar(value)
-        if scalar is None or value[consumed:].strip():
-            return None
-        return scalar
-    if value[0] in {"|", ">", "[", "{", "*", "&"}:
-        return None
-    return value
-
-
 def _parse_skill_frontmatter(root: Path, relative: str) -> tuple[str, str] | None:
     content = _read_repository_text(root, relative)
     if content is None:
         return None
-    if not content.startswith("---\n") or "\n---\n" not in content[4:]:
+    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.splitlines()
+    if not lines or lines[0] != "---":
         return None
-    header = content[4:].split("\n---\n", 1)[0]
-    values: dict[str, str] = {}
-    lines = header.splitlines()
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        index += 1
-        key, separator, value = line.partition(":")
-        if separator and key.strip() in {"name", "description"}:
-            raw_value = _strip_yaml_comment(value).strip()
-            if raw_value.startswith(("|", ">")):
-                indentation = len(line) - len(line.lstrip(" "))
-                block: list[str] = []
-                while index < len(lines):
-                    child = lines[index]
-                    child_indentation = len(child) - len(child.lstrip(" "))
-                    if child.strip() and child_indentation <= indentation:
-                        break
-                    block.append(child.strip())
-                    index += 1
-                separator_text = "\n" if raw_value.startswith("|") else " "
-                scalar = separator_text.join(block).strip()
-            else:
-                scalar = _frontmatter_scalar(value)
-            if scalar is None:
-                return None
-            values[key.strip()] = scalar
-    name = values.get("name", "")
-    description = values.get("description", "")
-    if not SKILL_NAME.fullmatch(name) or not description:
+    try:
+        closing = lines.index("---", 1)
+    except ValueError:
+        return None
+    try:
+        values = yaml.safe_load("\n".join(lines[1:closing]))
+    except (yaml.YAMLError, RecursionError):
+        return None
+    if not isinstance(values, dict):
+        return None
+    name = values.get("name")
+    description = values.get("description")
+    if (
+        not isinstance(name, str)
+        or not isinstance(description, str)
+        or not SKILL_NAME.fullmatch(name)
+        or len(name) > 64
+        or not description.strip()
+        or len(description) > 1024
+        or Path(relative).parent.name != name
+    ):
         return None
     return name, description
 

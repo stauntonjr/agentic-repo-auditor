@@ -101,12 +101,17 @@ class AuditorTests(unittest.TestCase):
             'jobs:\n  test:\n    "uses": owner/repository@main\n': "fail",
             "jobs:\n  test:\n    'uses': owner/repository@main\n": "fail",
             "jobs:\n  test: { uses: owner/repository@main }\n": "fail",
+            "jobs:\n  test:\n    - ? uses\n      : owner/repository@main\n": "fail",
             "jobs:\n  test:\n    uses : owner/repository@main\n": "fail",
             "jobs:\n  test:\n    uses: docker://alpine@sha256:not-a-digest\n": "fail",
             (
                 "jobs:\n  test:\n    steps:\n      - run: |\n"
                 "          echo 'uses: owner/repository@main'\n"
                 "      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567\n"
+            ): "pass",
+            (
+                'jobs:\n  test:\n    steps:\n      - run: "hello\n'
+                '          uses: shell-text@main"\n'
             ): "pass",
             (
                 "jobs:\n  test:\n    uses: "
@@ -514,6 +519,52 @@ class AuditorTests(unittest.TestCase):
             item for item in report.findings if item.finding_id == "agent-readiness.skills"
         )
         self.assertEqual("pass", finding.status)
+
+    def test_skill_frontmatter_enforces_portable_spec_constraints(self) -> None:
+        cases = (
+            (
+                "example",
+                "---\nmetadata:\n  name: example\n  description: Nested only\n---\n",
+                "fail",
+            ),
+            (
+                "example",
+                "---\nname: different\ndescription: Parent mismatch\n---\n",
+                "fail",
+            ),
+            (
+                "a" * 65,
+                f"---\nname: {'a' * 65}\ndescription: Too long a name\n---\n",
+                "fail",
+            ),
+            (
+                "example",
+                f"---\nname: example\ndescription: {'d' * 1025}\n---\n",
+                "fail",
+            ),
+            (
+                "example",
+                "---\r\nname: example\r\ndescription: CRLF metadata\r\n---\r\n# Skill\r\n",
+                "pass",
+            ),
+        )
+        for directory_name, content, expected in cases:
+            with self.subTest(directory_name=directory_name, expected=expected):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory) / "fixture"
+                    root.mkdir()
+                    initialize_repository(root)
+                    if directory_name != "example":
+                        skill = root / ".agents/skills" / directory_name / "SKILL.md"
+                        skill.parent.mkdir()
+                    else:
+                        skill = root / ".agents/skills/example/SKILL.md"
+                    skill.write_text(content, encoding="utf-8", newline="")
+                    report = audit_repository(root)
+                finding = next(
+                    item for item in report.findings if item.finding_id == "agent-readiness.skills"
+                )
+                self.assertEqual(expected, finding.status)
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "fixture"

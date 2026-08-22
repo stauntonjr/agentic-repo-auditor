@@ -25,9 +25,11 @@ Use a small product-owned report schema for v0.1 with:
 - summary counts without an aggregate numeric readiness score; and
 - JSON as the canonical machine representation with Markdown as a deterministic rendering.
 
-The offline core may read content evidence only from non-symlink regular files inside the requested worktree. Git may read the repository's own metadata, including external worktree metadata, but is invoked with optional locks, repository-configured filesystem monitors and hooks, discovered clean/smudge/process filter drivers, and lazy fetching disabled. Filter discovery covers effective repository/worktree configuration and registered submodules before status inspection. The core must not require credentials, model calls, network access, or runtime dependencies. GitHub, OpenSSF, SARIF, and other integrations remain adapters or exporters outside the core.
+The offline core may read content evidence only from non-symlink regular files inside the requested worktree. Git may read the repository's own metadata, including external worktree metadata, but is invoked with optional locks, repository-configured filesystem monitors and hooks, discovered clean/smudge/process filter drivers, and lazy fetching disabled. Filter discovery covers effective repository/worktree configuration and registered submodules before status inspection. The core must not require credentials, model calls, or network access. Its sole runtime dependency is pinned PyYAML 6.0.2 for semantic YAML parsing. GitHub, OpenSSF, SARIF, and other integrations remain adapters or exporters outside the core.
 
-Workflow references are extracted with a conservative YAML-aware scanner that understands block mappings, quoted keys and values, flow mappings, comments, and block scalars. Ambiguous `uses` values fail closed. It is intentionally not a general YAML loader and never constructs repository-controlled objects.
+Workflow references are extracted from PyYAML's safe composed node graph, so block, flow, quoted, explicit-key, alias, merge, and multiline scalar forms share YAML semantics. The collector traverses mappings and sequences without constructing repository-controlled Python objects; ambiguous non-string `uses` values fail closed. Repository reads are capped at 2 MiB, with explicit node-count and nesting-depth limits.
+
+Skill frontmatter uses PyYAML's safe loader after CRLF normalization. Required `name` and `description` values must be top-level strings; the name must equal its parent directory and satisfy the pinned Agent Skills syntax and length limits.
 
 The first categories are governance, Git, CI, security, testing, and agent readiness. A check may report `pass`, `warn`, `fail`, `not-applicable`, or `unknown`. Live settings that cannot be observed locally must not be inferred from repository files.
 
@@ -48,6 +50,7 @@ Full application behavior, architecture, data-flow, and runtime assessment is in
 - Local evidence cannot prove GitHub rulesets, secret scanning, dependency graph, collaborator MFA, or other privileged settings.
 - A custom schema creates a compatibility obligation before real downstream consumers are known.
 - Shallow structural agent checks cannot establish instruction quality or runtime behavior.
+- PyYAML adds one pinned runtime and supply-chain dependency.
 
 ### Risks and mitigations
 
@@ -56,6 +59,7 @@ Full application behavior, architecture, data-flow, and runtime assessment is in
 - Risk: checks duplicate OpenSSF behavior poorly. Mitigation: limit v0.1 to visible configuration signals and document external mappings rather than copied scoring.
 - Risk: auditing executes repository-controlled helpers or changes the target. Mitigation: override fsmonitor, hooks, and discovered content filters; disable optional locks and lazy fetching; reject symlinked evidence; and test adversarial executable sentinels plus complete target snapshots before and after CLI runs.
 - Risk: nested repository worktree content stays constant while its HEAD or index changes. Mitigation: bind nested and gitlink HEAD, staged index entries, assume-unchanged and skip-worktree flags, recursive gitlinks, and non-Git-metadata worktree content into the outer state ID.
+- Risk: pathological YAML consumes excessive resources. Mitigation: cap evidence-file bytes, composed nodes, and nesting depth; use safe parsing only; and normalize parser failures into deterministic findings or exit-2 input errors.
 
 ## Alternatives considered
 
