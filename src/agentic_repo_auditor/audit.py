@@ -31,6 +31,8 @@ SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FULL_COMMIT_SHA = re.compile(r"^[0-9a-fA-F]{40}$")
 DOCKER_DIGEST = re.compile(r"^docker://[^\s@]+@sha256:[0-9a-fA-F]{64}$")
 MAX_EVIDENCE_BYTES = 2 * 1024 * 1024
+MAX_NESTED_REPOSITORIES = 128
+FILTER_KEY = re.compile(r"^filter\.(.+)\.(?:clean|smudge|process|required)$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -63,14 +65,18 @@ def _finding(
     )
 
 
-def _git(root: Path, *args: str, check: bool = True) -> str:
+def _git_environment() -> dict[str, str]:
     environment = os.environ.copy()
     environment["GIT_OPTIONAL_LOCKS"] = "0"
     environment["GIT_NO_LAZY_FETCH"] = "1"
     environment["GIT_TERMINAL_PROMPT"] = "0"
     environment["GIT_CONFIG_NOSYSTEM"] = "1"
     environment["GIT_CONFIG_GLOBAL"] = os.devnull
-    command = [
+    return environment
+
+
+def _base_git_command(root: Path) -> list[str]:
+    return [
         "git",
         "--no-optional-locks",
         "-c",
@@ -81,10 +87,32 @@ def _git(root: Path, *args: str, check: bool = True) -> str:
         f"core.hooksPath={os.devnull}",
         "-C",
         str(root),
-        *args,
     ]
+
+
+def _run_git(
+    root: Path,
+    args: tuple[str, ...],
+    *,
+    filter_names: tuple[str, ...] = (),
+) -> subprocess.CompletedProcess[str]:
+    command = _base_git_command(root)
+    for name in filter_names:
+        command.extend(
+            (
+                "-c",
+                f"filter.{name}.clean=",
+                "-c",
+                f"filter.{name}.smudge=",
+                "-c",
+                f"filter.{name}.process=",
+                "-c",
+                f"filter.{name}.required=false",
+            )
+        )
+    command.extend(args)
     try:
-        result = subprocess.run(
+        return subprocess.run(
             command,
             check=False,
             text=True,
@@ -92,11 +120,80 @@ def _git(root: Path, *args: str, check: bool = True) -> str:
             errors="strict",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=environment,
+            env=_git_environment(),
             timeout=15,
         )
     except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
         raise AuditError(f"cannot inspect Git repository safely: {exc}") from exc
+
+
+def _configured_filter_names(root: Path) -> tuple[str, ...]:
+    """Find local filter drivers without invoking worktree conversion."""
+
+    visited: set[Path] = set()
+    names: set[str] = set()
+
+    def is_repository_root(path: Path) -> bool:
+        probe = _run_git(path, ("rev-parse", "--show-toplevel"))
+        if probe.returncode:
+            return False
+        try:
+            return Path(probe.stdout.rstrip("\r\n")).resolve() == path.resolve()
+        except OSError as exc:
+            raise AuditError(f"cannot resolve nested repository root {path}: {exc}") from exc
+
+    def inspect(repository: Path) -> None:
+        try:
+            identity = repository.resolve(strict=True)
+        except OSError as exc:
+            raise AuditError(f"cannot inspect nested repository path {repository}: {exc}") from exc
+        if identity in visited:
+            return
+        if len(visited) >= MAX_NESTED_REPOSITORIES:
+            raise AuditError("repository contains too many nested Git repositories to audit safely")
+        visited.add(identity)
+        configured = _run_git(
+            repository,
+            (
+                "config",
+                "--null",
+                "--name-only",
+                "--get-regexp",
+                r"^filter\..*\.(clean|smudge|process|required)$",
+            ),
+        )
+        if configured.returncode not in {0, 1}:
+            detail = configured.stderr.strip() or "cannot inspect repository filter configuration"
+            raise AuditError(detail)
+        for key in configured.stdout.split("\0"):
+            if not key:
+                continue
+            match = FILTER_KEY.fullmatch(key)
+            if match is None:
+                raise AuditError(f"unexpected Git filter configuration key: {key!r}")
+            names.add(match.group(1))
+        index = _run_git(repository, ("ls-files", "--stage", "-z"))
+        if index.returncode:
+            detail = index.stderr.strip() or "cannot inspect repository index"
+            raise AuditError(detail)
+        for token in index.stdout.split("\0"):
+            if not token:
+                continue
+            metadata, separator, relative = token.partition("\t")
+            if not separator or not metadata.startswith("160000 "):
+                continue
+            child = repository / _repository_relative(relative)
+            if _safe_kind(repository, relative) == "directory" and is_repository_root(child):
+                inspect(child)
+
+    inspect(root)
+    if len(names) > MAX_NESTED_REPOSITORIES:
+        raise AuditError("repository defines too many Git filter drivers to audit safely")
+    return tuple(sorted(names))
+
+
+def _git(root: Path, *args: str, check: bool = True) -> str:
+    result = _run_git(root, tuple(args), filter_names=_configured_filter_names(root))
     if check and result.returncode:
         detail = result.stderr.strip() or result.stdout.strip() or "git command failed"
         raise AuditError(detail)
@@ -165,11 +262,68 @@ def _read_repository_text(root: Path, relative: str) -> str | None:
         raise AuditError(f"repository file is not valid UTF-8: {relative}") from exc
 
 
+def _nested_repository_metadata(root: Path) -> dict[str, Any] | None:
+    """Capture nested HEAD/index state recursively without reading Git object contents."""
+
+    def is_repository_root(path: Path) -> bool:
+        probe = _run_git(path, ("rev-parse", "--show-toplevel"))
+        if probe.returncode:
+            return False
+        try:
+            return Path(probe.stdout.rstrip("\r\n")).resolve() == path.resolve()
+        except OSError as exc:
+            raise AuditError(f"cannot resolve nested repository root {path}: {exc}") from exc
+
+    if not is_repository_root(root):
+        return None
+    visited: set[Path] = set()
+
+    def inspect(repository: Path) -> dict[str, Any]:
+        identity = repository.resolve()
+        if identity in visited:
+            return {"cycle": identity.name}
+        if len(visited) >= MAX_NESTED_REPOSITORIES:
+            raise AuditError("repository contains too many nested Git repositories to fingerprint")
+        visited.add(identity)
+        head = _git(repository, "rev-parse", "HEAD", check=False) or "UNBORN"
+        index = _git(repository, "ls-files", "--stage", "-z")
+        children: list[dict[str, Any]] = []
+        for token in index.split("\0"):
+            if not token:
+                continue
+            metadata, separator, relative = token.partition("\t")
+            if not separator or not metadata.startswith("160000 "):
+                continue
+            if _safe_kind(repository, relative) != "directory":
+                continue
+            child_path = repository / _repository_relative(relative)
+            if is_repository_root(child_path):
+                children.append({"path": relative, "repository": inspect(child_path)})
+        return {
+            "head": head,
+            "index": hashlib.sha256(index.encode("utf-8")).hexdigest(),
+            "gitlinks": sorted(children, key=lambda item: item["path"]),
+        }
+
+    return inspect(root)
+
+
 def _fingerprint_worktree_path(root: Path, relative: str) -> str:
     """Hash a worktree entry without following links or reading Git metadata."""
 
     target = root / _repository_relative(relative)
     digest = hashlib.sha256()
+    try:
+        target_metadata = target.lstat()
+    except FileNotFoundError:
+        target_metadata = None
+    except OSError as exc:
+        raise AuditError(f"cannot fingerprint repository path {relative}: {exc}") from exc
+    if target_metadata is not None and stat.S_ISDIR(target_metadata.st_mode):
+        nested = _nested_repository_metadata(target)
+        if nested is not None:
+            payload = json.dumps(nested, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            digest.update(b"nested-git\0" + payload + b"\0")
 
     def visit(path: Path, display: str) -> None:
         try:

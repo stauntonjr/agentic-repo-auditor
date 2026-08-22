@@ -25,7 +25,7 @@ Use a small product-owned report schema for v0.1 with:
 - summary counts without an aggregate numeric readiness score; and
 - JSON as the canonical machine representation with Markdown as a deterministic rendering.
 
-The offline core may read content evidence only from non-symlink regular files inside the requested worktree. Git may read the repository's own metadata, including external worktree metadata, but is invoked with optional locks, repository-configured filesystem monitors and hooks, and lazy fetching disabled. The core must not require credentials, model calls, network access, or runtime dependencies. GitHub, OpenSSF, SARIF, and other integrations remain adapters or exporters outside the core.
+The offline core may read content evidence only from non-symlink regular files inside the requested worktree. Git may read the repository's own metadata, including external worktree metadata, but is invoked with optional locks, repository-configured filesystem monitors and hooks, discovered clean/smudge/process filter drivers, and lazy fetching disabled. Filter discovery covers effective repository/worktree configuration and registered submodules before status inspection. The core must not require credentials, model calls, network access, or runtime dependencies. GitHub, OpenSSF, SARIF, and other integrations remain adapters or exporters outside the core.
 
 Workflow references are extracted with a conservative YAML-aware scanner that understands block mappings, quoted keys and values, flow mappings, comments, and block scalars. Ambiguous `uses` values fail closed. It is intentionally not a general YAML loader and never constructs repository-controlled objects.
 
@@ -54,7 +54,8 @@ Full application behavior, architecture, data-flow, and runtime assessment is in
 - Risk: users treat findings as compliance claims. Mitigation: keep evidence explicit, avoid a numeric score, and label unavailable evidence unknown or deferred.
 - Risk: stable IDs change casually. Mitigation: treat IDs and JSON shape as SemVer-governed public contracts.
 - Risk: checks duplicate OpenSSF behavior poorly. Mitigation: limit v0.1 to visible configuration signals and document external mappings rather than copied scoring.
-- Risk: auditing executes repository-controlled helpers or changes the target. Mitigation: override fsmonitor and hooks, disable optional locks and lazy fetching, reject symlinked evidence, and test adversarial sentinels plus complete target snapshots before and after CLI runs.
+- Risk: auditing executes repository-controlled helpers or changes the target. Mitigation: override fsmonitor, hooks, and discovered content filters; disable optional locks and lazy fetching; reject symlinked evidence; and test adversarial executable sentinels plus complete target snapshots before and after CLI runs.
+- Risk: nested repository worktree content stays constant while its HEAD or index changes. Mitigation: bind nested and gitlink HEAD, full-index digest, recursive gitlinks, and non-Git-metadata worktree content into the outer state ID.
 
 ## Alternatives considered
 

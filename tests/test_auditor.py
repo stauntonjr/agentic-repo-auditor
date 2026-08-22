@@ -204,12 +204,169 @@ class AuditorTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
             )
             (nested / "payload.txt").write_text("nested version one\n", encoding="utf-8")
+            subprocess.run(["git", "add", "payload.txt"], cwd=nested, check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.invalid",
+                    "commit",
+                    "-m",
+                    "nested fixture",
+                ],
+                cwd=nested,
+                check=True,
+                stdout=subprocess.PIPE,
+            )
             nested_first = audit_repository(root).target.state_id
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.invalid",
+                    "commit",
+                    "--allow-empty",
+                    "-m",
+                    "head only",
+                ],
+                cwd=nested,
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            nested_head_second = audit_repository(root).target.state_id
+            object_id = subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                cwd=nested,
+                check=True,
+                input="index-only version\n",
+                text=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+            subprocess.run(
+                ["git", "update-index", "--cacheinfo", "100644", object_id, "payload.txt"],
+                cwd=nested,
+                check=True,
+            )
+            nested_index_second = audit_repository(root).target.state_id
             (nested / "payload.txt").write_text("nested version two\n", encoding="utf-8")
-            nested_second = audit_repository(root).target.state_id
+            nested_worktree_second = audit_repository(root).target.state_id
 
         self.assertNotEqual(hidden_first, hidden_second)
-        self.assertNotEqual(nested_first, nested_second)
+        self.assertNotEqual(nested_first, nested_head_second)
+        self.assertNotEqual(nested_head_second, nested_index_second)
+        self.assertNotEqual(nested_index_second, nested_worktree_second)
+
+    def test_state_identity_binds_dirty_gitlink_head(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            nested = root / "vendor/nested"
+            nested.mkdir(parents=True)
+            subprocess.run(
+                ["git", "init", "-b", "main"],
+                cwd=nested,
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            (nested / "payload.txt").write_text("stable worktree\n", encoding="utf-8")
+            (nested / ".gitattributes").write_text("*.txt filter=evil\n", encoding="utf-8")
+            subprocess.run(["git", "add", ".gitattributes", "payload.txt"], cwd=nested, check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.invalid",
+                    "commit",
+                    "-m",
+                    "nested fixture",
+                ],
+                cwd=nested,
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            child_head = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=nested,
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+            ).stdout.strip()
+            subprocess.run(
+                [
+                    "git",
+                    "update-index",
+                    "--add",
+                    "--cacheinfo",
+                    "160000",
+                    child_head,
+                    "vendor/nested",
+                ],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.invalid",
+                    "commit",
+                    "-m",
+                    "track gitlink",
+                ],
+                cwd=root,
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            sentinel = Path(directory) / "nested-filter-fired"
+            driver = nested / "filter.sh"
+            driver.write_text(f"#!/bin/sh\ntouch '{sentinel}'\ncat\n", encoding="utf-8")
+            driver.chmod(0o755)
+            subprocess.run(
+                ["git", "config", "filter.evil.clean", str(driver)], cwd=nested, check=True
+            )
+            subprocess.run(
+                ["git", "config", "filter.evil.process", str(driver)], cwd=nested, check=True
+            )
+            subprocess.run(
+                ["git", "config", "filter.evil.required", "true"], cwd=nested, check=True
+            )
+            (nested / "payload.txt").write_text("dirty stable worktree\n", encoding="utf-8")
+            first = ""
+            second = ""
+            for message in ("head one", "head two"):
+                subprocess.run(
+                    [
+                        "git",
+                        "-c",
+                        "user.name=Fixture",
+                        "-c",
+                        "user.email=fixture@example.invalid",
+                        "commit",
+                        "--allow-empty",
+                        "-m",
+                        message,
+                    ],
+                    cwd=nested,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                )
+                state_id = audit_repository(root).target.state_id
+                if message == "head one":
+                    first = state_id
+                else:
+                    second = state_id
+            self.assertFalse(sentinel.exists())
+
+        self.assertNotEqual(first, second)
 
     def test_repository_configured_fsmonitor_is_never_executed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -221,6 +378,57 @@ class AuditorTests(unittest.TestCase):
             monitor.write_text(f"#!/bin/sh\ntouch '{sentinel}'\n", encoding="utf-8")
             monitor.chmod(0o755)
             subprocess.run(["git", "config", "core.fsmonitor", str(monitor)], cwd=root, check=True)
+            audit_repository(root)
+            self.assertFalse(sentinel.exists())
+
+    def test_repository_configured_clean_filter_is_never_executed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            attributes = root / ".gitattributes"
+            payload = root / "payload.txt"
+            attributes.write_text("*.txt filter=evil\n", encoding="utf-8")
+            payload.write_text("original\n", encoding="utf-8")
+            subprocess.run(["git", "add", ".gitattributes", "payload.txt"], cwd=root, check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Fixture",
+                    "-c",
+                    "user.email=fixture@example.invalid",
+                    "commit",
+                    "-m",
+                    "filter fixture",
+                ],
+                cwd=root,
+                check=True,
+                stdout=subprocess.PIPE,
+            )
+            sentinel = Path(directory) / "filter-fired"
+            driver = root / "filter.sh"
+            driver.write_text(f"#!/bin/sh\ntouch '{sentinel}'\ncat\n", encoding="utf-8")
+            driver.chmod(0o755)
+            subprocess.run(
+                ["git", "config", "extensions.worktreeConfig", "true"], cwd=root, check=True
+            )
+            subprocess.run(
+                ["git", "config", "--worktree", "filter.evil.clean", str(driver)],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "--worktree", "filter.evil.process", str(driver)],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "--worktree", "filter.evil.required", "true"],
+                cwd=root,
+                check=True,
+            )
+            payload.write_text("changed\n", encoding="utf-8")
             audit_repository(root)
             self.assertFalse(sentinel.exists())
 
