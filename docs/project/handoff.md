@@ -15,7 +15,7 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Harness version: 0.4.0.
 - Product version: 0.1.0, unreleased.
 - Project status: active; greenfield intake accepted 2026-08-22.
-- Completed product loop: `20260822T164511Z-33525376`, revision 4 attempt 1 for LOCAL-1, reported at commit `743477c` after independent AC1-AC5 approval.
+- Completed product loop: `20260822T164511Z-33525376`, revision 4 attempt 1 for LOCAL-1, reported at content-equivalent rewritten commit `7de7119` after independent AC1-AC5 approval.
 - Active publication loop: `20260822T195818Z-743477c6` for LOCAL-2.
 - Architecture: ADR-0006 accepted by the human owner on 2026-08-22.
 - Publication state: public source publication at `stauntonjr/agentic-repo-auditor` is authorized and in progress; no tag, GitHub Release, or package-registry publication is authorized.

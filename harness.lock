@@ -268,7 +268,7 @@
       "ownership": "project-owned"
     },
     "docs/project/handoff.md": {
-      "sha256": "119546888a44ae91c745c67da99dd9557cf3ce2a0b7400b37f312b571c103599",
+      "sha256": "c0f0e066e19ed7750d1a277e478e306c337de659bd37f75cdd10065a49ab9933",
       "ownership": "project-owned"
     },
     "docs/project/working-agreements.md": {
@@ -320,8 +320,8 @@
       "ownership": "upstream-owned"
     },
     "harness/ownership.json": {
-      "sha256": "74868c127a556a51d2d591c99e53809be4432442e0efe83c4ea223c33cfa0846",
-      "ownership": "upstream-owned"
+      "sha256": "67c9ea6c716452a40e8b51784f49107013e8221f25e1065027ec70a3c41639a6",
+      "ownership": "merge-required"
     },
     "harness/preferences.example.json": {
       "sha256": "500586e6747936f99a4b5679d86c5fc5f5c24b4d07dccc08d6d35c63e3e3126b",
@@ -465,11 +465,11 @@
     },
     "tests/test_auditor.py": {
       "sha256": "75bd0d233a9de9d36e2b17cf9ae5fc8e735b11eb9c48620eeda018354f1fc5e2",
-      "ownership": "upstream-owned"
+      "ownership": "project-owned"
     },
     "tests/test_auditor_cli.py": {
       "sha256": "70665d4aa3c933cdda812690db1f53f2decb46851fbd8d35830e7c0ff23c1e09",
-      "ownership": "upstream-owned"
+      "ownership": "project-owned"
     },
     "tests/test_challenges.py": {
       "sha256": "d84d496abd34b59d2bfc576adf7b8de10c99e98501da5a8bfef7e1f9f75ac7c1",
@@ -488,7 +488,7 @@
       "ownership": "upstream-owned"
     },
     "tests/test_harness_upgrade.py": {
-      "sha256": "512deee5728aeb4d8904a4f3c5eb488e8945b4989bac1c255c67ff7533bd9997",
+      "sha256": "dd2efbb097e9938a5fb1cef5aac1e2de1733e1ec9279bc2d783856435e929139",
       "ownership": "upstream-owned"
     },
     "tests/test_loop.py": {

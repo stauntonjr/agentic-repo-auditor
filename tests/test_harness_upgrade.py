@@ -108,6 +108,62 @@ class HarnessUpgradeTests(unittest.TestCase):
             self.assertEqual("upstream-owned", lock["files"]["payload.txt"]["ownership"])
             self.assertEqual("merge-required", lock["files"]["policy.md"]["ownership"])
 
+    def test_product_tests_cannot_be_silently_removed_by_upstream(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "project"
+            source = base / "release"
+            root.mkdir()
+            source.mkdir()
+            policy = json.loads(
+                (ROOT / "harness/ownership.json").read_text(encoding="utf-8")
+            )
+            for release_root, version in ((root, "1.0.0"), (source, "2.0.0")):
+                write_json(
+                    release_root / "harness/version.json",
+                    {
+                        "current": version,
+                        "upstream_repository": "example/agentic-project-template",
+                    },
+                )
+                write_json(
+                    release_root / "harness/project.yaml",
+                    {"harness_version": version, "project": {"name": "Example"}},
+                )
+                write_json(release_root / "harness/ownership.json", policy)
+            for name in ("test_auditor.py", "test_auditor_cli.py"):
+                path = root / "tests" / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("# product acceptance test\n", encoding="utf-8")
+            for release_root, version in ((root, "1.0.0"), (source, "2.0.0")):
+                write_json(
+                    release_root / "harness.lock",
+                    create_lock(
+                        release_root,
+                        repository="example/agentic-project-template",
+                        release=f"v{version}",
+                        commit=f"commit-{version}",
+                    ),
+                )
+
+            current_lock = json.loads(
+                (root / "harness.lock").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                "merge-required",
+                current_lock["files"]["harness/ownership.json"]["ownership"],
+            )
+            plan = build_release_plan(root, source)
+            operations = {item["path"]: item for item in plan["operations"]}
+            for name in ("test_auditor.py", "test_auditor_cli.py"):
+                relative = f"tests/{name}"
+                self.assertEqual(
+                    "project-owned", current_lock["files"][relative]["ownership"]
+                )
+                self.assertEqual("remove", operations[relative]["action"])
+                self.assertEqual("manual", operations[relative]["disposition"])
+                self.assertTrue(operations[relative]["requires_explicit_review"])
+
     def test_lock_ignores_generated_dependency_and_build_trees(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
