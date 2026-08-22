@@ -3,8 +3,8 @@
   "harness_version": "0.4.0",
   "upstream": {
     "repository": "stauntonjr/agentic-project-template",
-    "release": "v0.4.0",
-    "commit": "UNPUBLISHED"
+    "release": "unreleased-v0.4.0-source-snapshot",
+    "commit": "e7dae5f2f5581c6bf1a8a91f8a3c595140d4bc07"
   },
   "files": {
     ".agents/skills/execute-engineering-loop/SKILL.md": {
@@ -220,7 +220,7 @@
       "ownership": "merge-required"
     },
     "Makefile": {
-      "sha256": "c3b31d66cf2c0944b872a62b8bc98ea40b2ee90ccdcd205ada2dc9b2086c173c",
+      "sha256": "5adb9de67cea790f76473408b7fe04d2d181aa1074b51319255e017f881ee59d",
       "ownership": "merge-required"
     },
     "README.md": {
