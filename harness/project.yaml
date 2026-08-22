@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "harness_version": "0.4.0",
+  "harness_version": "0.4.1",
   "template_mode": false,
   "project": {
     "name": "Agentic Repo Auditor",

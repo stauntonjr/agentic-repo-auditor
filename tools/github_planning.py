@@ -47,12 +47,29 @@ def flatten_pages(value: Any) -> list[dict[str, Any]]:
     return [item for item in value if isinstance(item, dict)]
 
 
+def parse_json_values(output: str, *, command: str) -> Any:
+    """Parse one JSON value or the whitespace-separated values emitted by gh pagination."""
+    decoder = json.JSONDecoder()
+    values: list[Any] = []
+    cursor = 0
+    while cursor < len(output):
+        while cursor < len(output) and output[cursor].isspace():
+            cursor += 1
+        if cursor == len(output):
+            break
+        try:
+            value, cursor = decoder.raw_decode(output, cursor)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"gh returned invalid JSON for {command}") from exc
+        values.append(value)
+    if not values:
+        raise RuntimeError(f"gh returned no JSON for {command}")
+    return values[0] if len(values) == 1 else values
+
+
 def gh_json(root: Path, *args: str) -> Any:
     result = run(["gh", *args], cwd=root)
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"gh returned invalid JSON for {' '.join(args)}") from exc
+    return parse_json_values(result.stdout, command=f"gh {' '.join(args)}")
 
 
 def read_live(root: Path, config: dict[str, Any]) -> dict[str, Any]:
@@ -70,14 +87,12 @@ def read_live(root: Path, config: dict[str, Any]) -> dict[str, Any]:
         root,
         "api",
         "--paginate",
-        "--slurp",
         f"repos/{repository}/labels?per_page=100",
     )
     milestone_pages = gh_json(
         root,
         "api",
         "--paginate",
-        "--slurp",
         f"repos/{repository}/milestones?state=all&per_page=100",
     )
     fields: list[dict[str, Any]] = []
@@ -129,12 +144,19 @@ def diff_state(config: dict[str, Any], live: dict[str, Any]) -> dict[str, Any]:
         elif (current.get("description") or "") != (desired.get("description") or ""):
             milestones_update.append({"desired": desired, "current": current})
 
-    missing_fields = [
-        desired for desired in config.get("fields", []) if desired["name"] not in live_fields
-    ]
-    mismatched_fields = field_mismatches(config.get("fields", []), live.get("fields", []))
+    project_audited = bool(live.get("project_audited"))
+    missing_fields = (
+        [desired for desired in config.get("fields", []) if desired["name"] not in live_fields]
+        if project_audited
+        else []
+    )
+    mismatched_fields = (
+        field_mismatches(config.get("fields", []), live.get("fields", []))
+        if project_audited
+        else []
+    )
     warnings: list[str] = []
-    if not live.get("project_audited"):
+    if not project_audited:
         warnings.append("project number is null; Project fields and views were not audited")
     else:
         warnings.append(
