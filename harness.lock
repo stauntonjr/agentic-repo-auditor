@@ -128,7 +128,7 @@
       "ownership": "merge-required"
     },
     ".github/ISSUE_TEMPLATE/config.yml": {
-      "sha256": "85822fce35578fcc420331e61c9633e5ec4ad837eca86a76534c452f67794679",
+      "sha256": "60cb23b2dd499ffdd5a0d03aad6369b14c1fdfd837be3b684c2a3d5d31c73d17",
       "ownership": "merge-required"
     },
     ".github/ISSUE_TEMPLATE/decision.yml": {
