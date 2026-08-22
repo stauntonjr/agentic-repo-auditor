@@ -20,6 +20,7 @@ All notable product changes are recorded here. Product and harness versions are 
 - Replaced the provisional YAML subset with bounded PyYAML semantic parsing for workflows and Skill frontmatter.
 - Scoped Action extraction to reusable-job and action-step schema locations, including aliases and merges.
 - Enforced top-level Skill metadata, directory/name equality, specification length limits, and CRLF compatibility.
+- Applied shared YAML node-count and nesting-depth limits before workflow or Skill interpretation.
 
 ## Harness baseline [0.4.0] - 2026-08-22
 

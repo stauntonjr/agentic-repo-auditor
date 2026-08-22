@@ -597,6 +597,29 @@ def _workflow_paths(root: Path) -> tuple[Path, ...]:
     return paths
 
 
+def _validate_yaml_graph(document: Node, *, context: str) -> None:
+    visited: set[int] = set()
+
+    def visit(node: Node, depth: int = 0) -> None:
+        if depth > MAX_YAML_DEPTH:
+            raise AuditError(f"{context} exceeds the safe nesting limit")
+        identity = id(node)
+        if identity in visited:
+            return
+        visited.add(identity)
+        if len(visited) > MAX_YAML_NODES:
+            raise AuditError(f"{context} exceeds the safe node limit")
+        if isinstance(node, MappingNode):
+            for key, value in node.value:
+                visit(key, depth + 1)
+                visit(value, depth + 1)
+        elif isinstance(node, SequenceNode):
+            for value in node.value:
+                visit(value, depth + 1)
+
+    visit(document)
+
+
 def _inspect_workflow(text: str) -> WorkflowInspection:
     references: list[str] = []
     errors: list[str] = []
@@ -608,24 +631,6 @@ def _inspect_workflow(text: str) -> WorkflowInspection:
         return WorkflowInspection((), (f"{location}invalid YAML: {exc}",))
     if document is None:
         return WorkflowInspection((), ())
-    visited: set[int] = set()
-
-    def validate_graph(node: Node, depth: int = 0) -> None:
-        if depth > MAX_YAML_DEPTH:
-            raise AuditError("workflow YAML exceeds the safe nesting limit")
-        identity = id(node)
-        if identity in visited:
-            return
-        visited.add(identity)
-        if len(visited) > MAX_YAML_NODES:
-            raise AuditError("workflow YAML exceeds the safe node limit")
-        if isinstance(node, MappingNode):
-            for key, value in node.value:
-                validate_graph(key, depth + 1)
-                validate_graph(value, depth + 1)
-        elif isinstance(node, SequenceNode):
-            for value in node.value:
-                validate_graph(value, depth + 1)
 
     def effective_mapping(
         node: MappingNode,
@@ -664,7 +669,7 @@ def _inspect_workflow(text: str) -> WorkflowInspection:
                 f"line {value.start_mark.line + 1}: {context} uses value must be a string"
             )
 
-    validate_graph(document)
+    _validate_yaml_graph(document, context="workflow YAML")
     if not isinstance(document, MappingNode):
         return WorkflowInspection((), ("workflow document must be a mapping",))
     jobs = effective_mapping(document).get("jobs")
@@ -887,8 +892,13 @@ def _parse_skill_frontmatter(root: Path, relative: str) -> tuple[str, str] | Non
         closing = lines.index("---", 1)
     except ValueError:
         return None
+    header = "\n".join(lines[1:closing])
     try:
-        values = yaml.safe_load("\n".join(lines[1:closing]))
+        document = yaml.compose(header, Loader=yaml.SafeLoader)
+        if document is None:
+            return None
+        _validate_yaml_graph(document, context="Skill frontmatter YAML")
+        values = yaml.safe_load(header)
     except (yaml.YAMLError, RecursionError):
         return None
     if not isinstance(values, dict):

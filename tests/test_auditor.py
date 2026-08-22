@@ -558,6 +558,11 @@ class AuditorTests(unittest.TestCase):
                 "---\r\nname: example\r\ndescription: CRLF metadata\r\n---\r\n# Skill\r\n",
                 "pass",
             ),
+            (
+                "example",
+                "---\nname: example\ndescription: >\n  Valid folded\n  metadata\n---\n# Example\n",
+                "pass",
+            ),
         )
         for directory_name, content, expected in cases:
             with self.subTest(directory_name=directory_name, expected=expected):
@@ -577,19 +582,18 @@ class AuditorTests(unittest.TestCase):
                 )
                 self.assertEqual(expected, finding.status)
 
+    def test_skill_frontmatter_enforces_yaml_resource_limits(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "fixture"
             root.mkdir()
             initialize_repository(root)
+            extra = "".join(f"extra-{index}: value\n" for index in range(10_100))
             (root / ".agents/skills/example/SKILL.md").write_text(
-                "---\nname: example\ndescription: >\n  Valid folded\n  metadata\n---\n# Example\n",
+                f"---\nname: example\ndescription: Bounded metadata\n{extra}---\n",
                 encoding="utf-8",
             )
-            report = audit_repository(root)
-        finding = next(
-            item for item in report.findings if item.finding_id == "agent-readiness.skills"
-        )
-        self.assertEqual("pass", finding.status)
+            with self.assertRaisesRegex(AuditError, "Skill frontmatter YAML exceeds"):
+                audit_repository(root)
 
     def test_presence_checks_reject_directories_and_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
