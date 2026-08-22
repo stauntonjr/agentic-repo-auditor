@@ -33,7 +33,8 @@ product-version:
 	python3 tools/product_version.py
 
 harness-lock:
-	python3 tools/harness_upgrade.py lock --repository stauntonjr/agentic-project-template --release unreleased-v0.4.0-source-snapshot --commit e7dae5f2f5581c6bf1a8a91f8a3c595140d4bc07 --yes
+	# Derived repositories advance the upstream base lock only through a reviewed upgrade.
+	python3 tools/harness_upgrade.py status
 
 harness-eval-validate:
 	python3 tools/evaluate_harness.py

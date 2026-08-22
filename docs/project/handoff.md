@@ -12,7 +12,7 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Current state
 
-- Harness version: 0.4.0.
+- Harness version: 0.4.1.
 - Product version: 0.1.0, unreleased.
 - Project status: active; greenfield intake accepted 2026-08-22.
 - Completed product loop: `20260822T164511Z-33525376`, revision 4 attempt 1 for LOCAL-1, reported at content-equivalent rewritten commit `7de7119` after independent AC1-AC5 approval.

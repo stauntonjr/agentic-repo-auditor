@@ -60,6 +60,20 @@ def make_release(root: Path, version: str, payload: str, policy_text: str) -> No
 
 
 class HarnessUpgradeTests(unittest.TestCase):
+    def test_derived_harness_lock_target_cannot_regenerate_the_upstream_base(self) -> None:
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        target = makefile.split("harness-lock:\n", 1)[1].split("\n\nharness-eval-validate:", 1)[0]
+        self.assertIn("harness_upgrade.py status", target)
+        self.assertNotIn("harness_upgrade.py lock", target)
+
+        lock = json.loads((ROOT / "harness.lock").read_text(encoding="utf-8"))
+        self.assertEqual("0.4.1", lock["harness_version"])
+        self.assertEqual("v0.4.1", lock["upstream"]["release"])
+        self.assertEqual(
+            "497407dd94d40beed0847bf170684507434a74c8",
+            lock["upstream"]["commit"],
+        )
+
     def test_migration_plan_is_non_mutating_and_marks_manual_review(self) -> None:
         current = json.loads((ROOT / "harness/project.yaml").read_text(encoding="utf-8"))[
             "harness_version"

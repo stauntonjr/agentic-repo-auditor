@@ -61,7 +61,7 @@ Success measures:
 - Product versioning: semver at 0.1.0
 - Version source: harness/project.yaml:engineering.versioning.current
 - Public contract: CLI arguments and exit statuses, configuration schema, JSON report schema
-- Harness version: 0.4.0
+- Harness version: 0.4.1
 
 ## Authority
 
