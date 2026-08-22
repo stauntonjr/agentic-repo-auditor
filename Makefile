@@ -4,7 +4,7 @@ check:
 	python3 tools/harness_check.py
 
 test:
-	python3 -m unittest discover -s tests -v
+	uv run python -m unittest discover -s tests -v
 
 compile:
 	python3 -m compileall -q tools tests
