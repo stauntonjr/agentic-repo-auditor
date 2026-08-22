@@ -101,7 +101,9 @@ class AuditorTests(unittest.TestCase):
             'jobs:\n  test:\n    "uses": owner/repository@main\n': "fail",
             "jobs:\n  test:\n    'uses': owner/repository@main\n": "fail",
             "jobs:\n  test: { uses: owner/repository@main }\n": "fail",
-            "jobs:\n  test:\n    - ? uses\n      : owner/repository@main\n": "fail",
+            (
+                "jobs:\n  test:\n    steps:\n      - ? uses\n        : owner/repository@main\n"
+            ): "fail",
             "jobs:\n  test:\n    uses : owner/repository@main\n": "fail",
             "jobs:\n  test:\n    uses: docker://alpine@sha256:not-a-digest\n": "fail",
             (
@@ -113,6 +115,15 @@ class AuditorTests(unittest.TestCase):
                 'jobs:\n  test:\n    steps:\n      - run: "hello\n'
                 '          uses: shell-text@main"\n'
             ): "pass",
+            "env: { uses: this-is-an-env-value@main }\njobs:\n  test:\n    steps: []\n": "pass",
+            (
+                "jobs:\n  test:\n    steps:\n      - run: echo test\n"
+                "        with: { uses: ordinary-input@main }\n"
+            ): "pass",
+            (
+                "defaults: &action\n  uses: owner/repository@main\n"
+                "jobs:\n  test:\n    steps:\n      - <<: *action\n"
+            ): "fail",
             (
                 "jobs:\n  test:\n    uses: "
                 "docker://alpine@sha256:0123456789abcdef0123456789abcdef"

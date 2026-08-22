@@ -610,7 +610,7 @@ def _inspect_workflow(text: str) -> WorkflowInspection:
         return WorkflowInspection((), ())
     visited: set[int] = set()
 
-    def visit(node: Node, depth: int = 0) -> None:
+    def validate_graph(node: Node, depth: int = 0) -> None:
         if depth > MAX_YAML_DEPTH:
             raise AuditError("workflow YAML exceeds the safe nesting limit")
         identity = id(node)
@@ -621,19 +621,79 @@ def _inspect_workflow(text: str) -> WorkflowInspection:
             raise AuditError("workflow YAML exceeds the safe node limit")
         if isinstance(node, MappingNode):
             for key, value in node.value:
-                if isinstance(key, ScalarNode) and key.value == "uses":
-                    if isinstance(value, ScalarNode) and value.tag.endswith(":str"):
-                        references.append(value.value)
-                    else:
-                        errors.append(
-                            f"line {value.start_mark.line + 1}: uses value must be a string"
-                        )
-                visit(value, depth + 1)
+                validate_graph(key, depth + 1)
+                validate_graph(value, depth + 1)
         elif isinstance(node, SequenceNode):
             for value in node.value:
-                visit(value, depth + 1)
+                validate_graph(value, depth + 1)
 
-    visit(document)
+    def effective_mapping(
+        node: MappingNode,
+        depth: int = 0,
+        active: frozenset[int] = frozenset(),
+    ) -> dict[str, Node]:
+        if depth > MAX_YAML_DEPTH or id(node) in active:
+            return {}
+        next_active = active | {id(node)}
+        merged_nodes: list[MappingNode] = []
+        direct: list[tuple[str, Node]] = []
+        for key, value in node.value:
+            if not isinstance(key, ScalarNode):
+                continue
+            if key.value == "<<":
+                if isinstance(value, MappingNode):
+                    merged_nodes.append(value)
+                elif isinstance(value, SequenceNode):
+                    merged_nodes.extend(
+                        item for item in reversed(value.value) if isinstance(item, MappingNode)
+                    )
+                continue
+            direct.append((key.value, value))
+        result: dict[str, Node] = {}
+        for merged in merged_nodes:
+            result.update(effective_mapping(merged, depth + 1, next_active))
+        for key, value in direct:
+            result[key] = value
+        return result
+
+    def add_reference(value: Node, context: str) -> None:
+        if isinstance(value, ScalarNode) and value.tag.endswith(":str"):
+            references.append(value.value)
+        else:
+            errors.append(
+                f"line {value.start_mark.line + 1}: {context} uses value must be a string"
+            )
+
+    validate_graph(document)
+    if not isinstance(document, MappingNode):
+        return WorkflowInspection((), ("workflow document must be a mapping",))
+    jobs = effective_mapping(document).get("jobs")
+    if jobs is None:
+        return WorkflowInspection((), ())
+    if not isinstance(jobs, MappingNode):
+        return WorkflowInspection((), ("workflow jobs value must be a mapping",))
+    for job_id, job in effective_mapping(jobs).items():
+        if not isinstance(job, MappingNode):
+            errors.append(f"line {job.start_mark.line + 1}: job {job_id} must be a mapping")
+            continue
+        fields = effective_mapping(job)
+        if "uses" in fields:
+            add_reference(fields["uses"], f"job {job_id}")
+        steps = fields.get("steps")
+        if steps is None:
+            continue
+        if not isinstance(steps, SequenceNode):
+            errors.append(
+                f"line {steps.start_mark.line + 1}: job {job_id} steps must be a sequence"
+            )
+            continue
+        for step_index, step in enumerate(steps.value):
+            if not isinstance(step, MappingNode):
+                continue
+            step_uses = effective_mapping(step).get("uses")
+            if step_uses is not None:
+                add_reference(step_uses, f"job {job_id} step {step_index}")
+
     return WorkflowInspection(tuple(references), tuple(errors))
 
 

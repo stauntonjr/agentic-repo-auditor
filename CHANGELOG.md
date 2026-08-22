@@ -18,6 +18,7 @@ All notable product changes are recorded here. Product and harness versions are 
 - Bound target state IDs to dirty index/worktree content, symlinks, hidden-index entries, and nested repository HEAD/staged-entry/hidden-flag/worktree state.
 - Added conservative YAML-aware workflow reference extraction and repository-contained file reads.
 - Replaced the provisional YAML subset with bounded PyYAML semantic parsing for workflows and Skill frontmatter.
+- Scoped Action extraction to reusable-job and action-step schema locations, including aliases and merges.
 - Enforced top-level Skill metadata, directory/name equality, specification length limits, and CRLF compatibility.
 
 ## Harness baseline [0.4.0] - 2026-08-22
