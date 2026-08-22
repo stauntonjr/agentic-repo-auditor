@@ -133,6 +133,13 @@ class HarnessUpgradeTests(unittest.TestCase):
                 path = root / "tests" / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("# product acceptance test\n", encoding="utf-8")
+            for release_root, content in (
+                (root, "# derived upgrade safety regression\n"),
+                (source, "# upstream upgrade tests\n"),
+            ):
+                path = release_root / "tests/test_harness_upgrade.py"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
             for release_root, version in ((root, "1.0.0"), (source, "2.0.0")):
                 write_json(
                     release_root / "harness.lock",
@@ -151,6 +158,11 @@ class HarnessUpgradeTests(unittest.TestCase):
             )
             plan = build_release_plan(root, source)
             operations = {item["path"]: item for item in plan["operations"]}
+            upgrade_test = operations["tests/test_harness_upgrade.py"]
+            self.assertEqual("replace", upgrade_test["action"])
+            self.assertEqual("merge-required", upgrade_test["ownership"])
+            self.assertEqual("manual", upgrade_test["disposition"])
+            self.assertTrue(upgrade_test["requires_explicit_review"])
             for name in ("test_auditor.py", "test_auditor_cli.py"):
                 relative = f"tests/{name}"
                 self.assertEqual("project-owned", current_lock["files"][relative]["ownership"])

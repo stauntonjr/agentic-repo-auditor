@@ -11,6 +11,7 @@
     {"pattern": "tools/**", "ownership": "upstream-owned"},
     {"pattern": "tests/test_auditor.py", "ownership": "project-owned"},
     {"pattern": "tests/test_auditor_cli.py", "ownership": "project-owned"},
+    {"pattern": "tests/test_harness_upgrade.py", "ownership": "merge-required"},
     {"pattern": "tests/**", "ownership": "upstream-owned"},
     {"pattern": "harness/loops/**", "ownership": "upstream-owned"},
     {"pattern": "harness/roles/**", "ownership": "upstream-owned"},
