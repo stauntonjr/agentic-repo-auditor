@@ -1,0 +1,158 @@
+{
+  "schema_version": "1.0",
+  "harness_version": "0.4.0",
+  "template_mode": false,
+  "project": {
+    "name": "Agentic Repo Auditor",
+    "summary": "A read-only Python CLI for repository maintainers that produces evidence-backed engineering-harness, security, CI, governance, and agent-readiness gap reports.",
+    "lifecycle": "new",
+    "profile": "python-data",
+    "status": "active",
+    "repository": "stauntonjr/agentic-repo-auditor"
+  },
+  "intent": {
+    "users": [
+      "maintainers of agent-developed repositories",
+      "engineering leads evaluating repository readiness"
+    ],
+    "outcomes": [
+      "Evidence-backed repository readiness and gap assessment",
+      "A repeatable basis for prioritizing engineering-harness improvements"
+    ],
+    "success_metrics": [
+      "Audit this template and one existing repository end to end",
+      "Produce deterministic JSON and Markdown for an unchanged repository state",
+      "Make no writes to the audited repository",
+      "make smoke passes locally and in CI"
+    ],
+    "in_scope": [
+      "Local repository evidence collection",
+      "Deterministic JSON and Markdown reports",
+      "Harness and governance checks",
+      "Git hygiene and CI checks",
+      "Security-configuration and testing checks",
+      "Agent-readiness checks",
+      "Optional read-only GitHub metadata"
+    ],
+    "out_of_scope": [
+      "Automatic remediation",
+      "Writes to audited repositories or GitHub",
+      "Model calls or model-scored findings",
+      "Full application behavior, architecture, data-flow, or runtime assessment",
+      "Organization-wide aggregation"
+    ]
+  },
+  "constraints": {
+    "security": [
+      "No secrets in the repository"
+    ],
+    "data_classification": "potentially confidential source metadata and generated reports; local-only processing by default",
+    "deployment": "local CLI; CI execution may be added only through a later accepted loop",
+    "budget": "TBD",
+    "licenses": [
+      "MIT"
+    ]
+  },
+  "engineering": {
+    "languages": [
+      "Python"
+    ],
+    "build_commands": [
+      "uv build"
+    ],
+    "test_commands": [
+      "uv run pytest"
+    ],
+    "command_contract": {
+      "primary_check": "make smoke",
+      "bootstrap": "uv sync --locked",
+      "format_check": "uvx --from ruff==0.12.10 ruff format --check .",
+      "lint": "uvx --from ruff==0.12.10 ruff check .",
+      "typecheck": "uvx --from pyright==1.1.403 pyright",
+      "unit": "uv run --with pytest==8.4.1 --with pytest-cov==6.2.1 --with hypothesis==6.138.13 python -m pytest --cov=. --cov-branch --cov-report=term-missing -m 'not integration'",
+      "integration": "uv run --with pytest==8.4.1 python -m pytest -m integration",
+      "package_smoke": "not-applicable: configure in the first implementation loop when the Python package and CLI entrypoint are created"
+    },
+    "quality": {
+      "dependency_lock": "uv.lock",
+      "coverage_policy": "branch-coverage-baseline-required-before-release",
+      "required_checks": [
+        "format_check",
+        "lint",
+        "typecheck",
+        "unit"
+      ],
+      "property_testing": "hypothesis"
+    },
+    "versioning": {
+      "strategy": "semver",
+      "current": "0.1.0",
+      "public_contract": [
+        "CLI arguments and exit statuses",
+        "configuration schema",
+        "JSON report schema"
+      ],
+      "source": "harness/project.yaml:engineering.versioning.current",
+      "tag_prefix": "v",
+      "pre_1_0_policy": "breaking-changes-bump-minor",
+      "release_notes": "CHANGELOG.md"
+    },
+    "architecture_changes_require_adr": true,
+    "public_interface_acceptance_required": true
+  },
+  "autonomy": {
+    "level": "supervised",
+    "network_writes": "explicit-human-approval",
+    "destructive_actions": "explicit-human-approval",
+    "release": "human-only",
+    "policy_changes": "human-review"
+  },
+  "sources_of_truth": [
+    {
+      "rank": 1,
+      "source": "accepted ADRs",
+      "scope": "durable architecture decisions"
+    },
+    {
+      "rank": 2,
+      "source": "code and schemas",
+      "scope": "implemented behavior"
+    },
+    {
+      "rank": 3,
+      "source": "tests and check evidence",
+      "scope": "verified behavior"
+    },
+    {
+      "rank": 4,
+      "source": "GitHub Issues",
+      "scope": "accepted work and acceptance criteria"
+    },
+    {
+      "rank": 5,
+      "source": "GitHub Project",
+      "scope": "operational planning view"
+    },
+    {
+      "rank": 6,
+      "source": "handoff and reports",
+      "scope": "orientation and derived status"
+    }
+  ],
+  "github": {
+    "issues_are_canonical_work_items": true,
+    "project_enabled": true,
+    "planning_contract": ".github/planning.json",
+    "security": {
+      "dependency_updates": "dependabot",
+      "dependency_review": "required",
+      "code_scanning": "codeql",
+      "secret_scanning": "required",
+      "push_protection": "required",
+      "workflow_permissions": "least-privilege",
+      "action_pinning": "full-commit-sha"
+    }
+  },
+  "open_questions": [],
+  "decisions": []
+}

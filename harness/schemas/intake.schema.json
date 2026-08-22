@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project intake record",
+  "type": "object",
+  "required": ["schema_version", "mode", "captured_at", "answers"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "mode": {"enum": ["new", "adopt", "refresh", "gap-only"]},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "answers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["value", "status", "source", "recorded_at"],
+        "properties": {
+          "status": {
+            "enum": ["confirmed", "provisional", "assumed", "TBD", "not-applicable"]
+          }
+        }
+      }
+    },
+    "contradictions": {"type": "array"}
+  }
+}

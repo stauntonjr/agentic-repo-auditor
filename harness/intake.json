@@ -1,0 +1,172 @@
+{
+  "schema_version": "1.0",
+  "mode": "new",
+  "captured_at": "2026-08-22T14:39:23Z",
+  "answers": {
+    "project.name": {
+      "value": "Agentic Repo Auditor",
+      "status": "confirmed",
+      "source": "user-confirmed chat",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "project.summary": {
+      "value": "A read-only Python CLI for repository maintainers that produces evidence-backed engineering-harness, security, CI, governance, and agent-readiness gap reports.",
+      "status": "confirmed",
+      "source": "user-confirmed chat",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "project.repository": {
+      "value": "stauntonjr/agentic-repo-auditor",
+      "status": "assumed",
+      "source": "existing GitHub owner and accepted project name",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "project.profile": {
+      "value": "python-data",
+      "status": "assumed",
+      "source": "structured-report Python CLI requirements",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "intent.users": {
+      "value": [
+        "maintainers of agent-developed repositories",
+        "engineering leads evaluating repository readiness"
+      ],
+      "status": "confirmed",
+      "source": "accepted product proposal",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "intent.outcomes": {
+      "value": [
+        "Evidence-backed repository readiness and gap assessment",
+        "A repeatable basis for prioritizing engineering-harness improvements"
+      ],
+      "status": "confirmed",
+      "source": "accepted product proposal",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "intent.success_metrics": {
+      "value": [
+        "Audit this template and one existing repository end to end",
+        "Produce deterministic JSON and Markdown for an unchanged repository state",
+        "Make no writes to the audited repository",
+        "make smoke passes locally and in CI"
+      ],
+      "status": "confirmed",
+      "source": "user-confirmed v0.1 boundary",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "intent.in_scope": {
+      "value": [
+        "Local repository evidence collection",
+        "Deterministic JSON and Markdown reports",
+        "Harness and governance checks",
+        "Git hygiene and CI checks",
+        "Security-configuration and testing checks",
+        "Agent-readiness checks",
+        "Optional read-only GitHub metadata"
+      ],
+      "status": "confirmed",
+      "source": "user-confirmed v0.1 boundary",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "intent.out_of_scope": {
+      "value": [
+        "Automatic remediation",
+        "Writes to audited repositories or GitHub",
+        "Model calls or model-scored findings",
+        "Full application behavior, architecture, data-flow, or runtime assessment",
+        "Organization-wide aggregation"
+      ],
+      "status": "confirmed",
+      "source": "user-confirmed v0.1 boundary and deferred companion product",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "constraints.data_classification": {
+      "value": "potentially confidential source metadata and generated reports; local-only processing by default",
+      "status": "assumed",
+      "source": "conservative security default",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "constraints.deployment": {
+      "value": "local CLI; CI execution may be added only through a later accepted loop",
+      "status": "assumed",
+      "source": "user-confirmed read-only v0.1 boundary",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "constraints.licenses": {
+      "value": [
+        "MIT"
+      ],
+      "status": "assumed",
+      "source": "template license default",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "engineering.languages": {
+      "value": [
+        "Python"
+      ],
+      "status": "confirmed",
+      "source": "accepted product proposal",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "engineering.build_commands": {
+      "value": [
+        "uv build"
+      ],
+      "status": "assumed",
+      "source": "python-data profile",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "engineering.test_commands": {
+      "value": [
+        "uv run pytest"
+      ],
+      "status": "assumed",
+      "source": "python-data profile",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "engineering.command_contract.package_smoke": {
+      "value": "not-applicable: configure in the first implementation loop when the Python package and CLI entrypoint are created",
+      "status": "provisional",
+      "source": "greenfield bootstrap boundary",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "engineering.versioning.strategy": {
+      "value": "semver",
+      "status": "assumed",
+      "source": "versioned CLI and report contracts",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "engineering.versioning.current": {
+      "value": "0.1.0",
+      "status": "assumed",
+      "source": "greenfield pre-1.0 default",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "engineering.versioning.public_contract": {
+      "value": [
+        "CLI arguments and exit statuses",
+        "configuration schema",
+        "JSON report schema"
+      ],
+      "status": "assumed",
+      "source": "accepted product boundary",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "engineering.versioning.source": {
+      "value": "harness/project.yaml:engineering.versioning.current",
+      "status": "assumed",
+      "source": "bootstrap source available before package creation",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    },
+    "autonomy.level": {
+      "value": "supervised",
+      "status": "assumed",
+      "source": "template authority default",
+      "recorded_at": "2026-08-22T14:38:28Z"
+    }
+  },
+  "contradictions": [],
+  "missing_essential_fields": []
+}

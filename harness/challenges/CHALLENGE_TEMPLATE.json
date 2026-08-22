@@ -1,0 +1,22 @@
+{
+  "id": "C000",
+  "title": "Replace with the escaped defect",
+  "escaped_defect": {
+    "introduced_by": "COMMIT_OR_INCIDENT",
+    "description": "What passed existing controls but was wrong"
+  },
+  "affected_surfaces": ["public-interface"],
+  "oracle": {
+    "argv": ["python3", "-m", "unittest", "tests.test_regression"],
+    "success_exit_code": 0
+  },
+  "known_bad": {
+    "argv": ["python3", "tools/replay_known_bad.py", "C000"]
+  },
+  "expected_failure": {
+    "exit_code": 1,
+    "signature": "Replace with the semantic failure signature"
+  },
+  "visibility": "public-oracle",
+  "notes": "Copy to CNNN.json and replace every placeholder. Do not claim a held-out score from a public oracle."
+}

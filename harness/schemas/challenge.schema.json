@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent engineering challenge",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "escaped_defect",
+    "affected_surfaces",
+    "oracle",
+    "known_bad",
+    "expected_failure"
+  ],
+  "properties": {
+    "id": {"pattern": "^C[0-9]{3,}$"},
+    "oracle": {
+      "type": "object",
+      "required": ["argv", "success_exit_code"]
+    },
+    "known_bad": {
+      "type": "object",
+      "required": ["argv"]
+    }
+  }
+}
