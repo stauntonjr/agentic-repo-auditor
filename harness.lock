@@ -144,11 +144,11 @@
       "ownership": "merge-required"
     },
     ".github/dependabot.yml": {
-      "sha256": "a85274c62be22ddba0b845540e311f7bff824f587d541ef383f63ecad2af5f93",
+      "sha256": "53bdec301328f309b9729d9d1909a18f5770a278578786c0cbc5ce30c9ea807b",
       "ownership": "merge-required"
     },
     ".github/planning.json": {
-      "sha256": "c6aba1444bd7f7e9f7209084e3e32843caf79c46342268f95ff22e5cf17415e3",
+      "sha256": "1e11f88e4d60a5ca090cc2e3466d5edcc4932f164e14102a7037e702ac853446",
       "ownership": "project-owned"
     },
     ".github/pull_request_template.md": {
@@ -208,7 +208,7 @@
       "ownership": "merge-required"
     },
     "CHANGELOG.md": {
-      "sha256": "36c241dd65b6cc8d2fd667129ef2d632d91fcc7b112f4d3e9ed1b9f41b694cb5",
+      "sha256": "1b37d449329dd9354dfd2bf2114b40d3e59810c3917fd61eb3bea8868c50ff86",
       "ownership": "merge-required"
     },
     "CONTRIBUTING.md": {
@@ -224,7 +224,7 @@
       "ownership": "merge-required"
     },
     "README.md": {
-      "sha256": "216737674c062bd65d659afc1a512984974f3dc4f72b39a10452bcec6f167949",
+      "sha256": "908432b23590a60e2232f8a9f8fe806291eb4187de6c87d1375f962588d0c423",
       "ownership": "merge-required"
     },
     "SECURITY.md": {
@@ -255,8 +255,12 @@
       "sha256": "678210a0a999754e232cdeb1aa04d381a37db18f36172d1ea7d0722af3cbc9dc",
       "ownership": "project-owned"
     },
+    "docs/adr/0006-repository-audit-finding-model.md": {
+      "sha256": "29988d9fa3363a48d813339256b5263dd4800af2dbf9894454353f90203be897",
+      "ownership": "project-owned"
+    },
     "docs/project/charter.md": {
-      "sha256": "ee9ffff688d8b7a8a27964196aae16e06accf6ce29a0f69111f43d83fed1dd6c",
+      "sha256": "bd1a7fa1e219e1f84c662e4dbac35f42d62d7e5a90b15802c34ba7e8b717e482",
       "ownership": "project-owned"
     },
     "docs/project/engineering-baseline.md": {
@@ -264,7 +268,7 @@
       "ownership": "project-owned"
     },
     "docs/project/handoff.md": {
-      "sha256": "8dfc90674f3ea041d652b59090873c70ae1fb62f7e7ccd9f7bd74b595541d09c",
+      "sha256": "982e0a05e7fbe62c9fd25c0d1f48c16d64e2c3b58c1c149806279dcb25929e1d",
       "ownership": "project-owned"
     },
     "docs/project/working-agreements.md": {
@@ -273,6 +277,10 @@
     },
     "docs/research/landscape.md": {
       "sha256": "8efc0691a945bddac14bc8db7c2b62d3decfb0d956594ad61ac714b045505a6a",
+      "ownership": "project-owned"
+    },
+    "docs/research/repository-auditor-landscape.md": {
+      "sha256": "08e5e456e7fa0b7b6183c7b49adeda5e07568ede72fe350b6b3cc6a181db8203",
       "ownership": "project-owned"
     },
     "harness/adapters/codex.json": {
@@ -298,6 +306,10 @@
     "harness/fixtures/python-data.answers.json": {
       "sha256": "02e3bd1b7b7383180920f1174d2debc6fd0134317b54798eef6b7fd3efb704c3",
       "ownership": "upstream-owned"
+    },
+    "harness/intake.json": {
+      "sha256": "c4247bb9a426c7058f25da0210f3c6e048ebe1037fadab008be09a07cb4ae55b",
+      "ownership": "project-owned"
     },
     "harness/loops/engineering-loop.yaml": {
       "sha256": "56a51186161323d8b2041debaed1a29f9cfb6ebb6d4ee57e0148b8412348f413",
@@ -332,7 +344,7 @@
       "ownership": "upstream-owned"
     },
     "harness/project.yaml": {
-      "sha256": "3cdad6336baffadfe806a23c40a868cdd34783a49288a401674108fe74fed27c",
+      "sha256": "4e6c04096b0858e774f33ad99826f97e3e058cbad67780a2225a080885bd322b",
       "ownership": "project-owned"
     },
     "harness/roles/explorer.md": {
@@ -408,11 +420,55 @@
       "ownership": "upstream-owned"
     },
     "pyproject.toml": {
-      "sha256": "1a417625a49a85228454b96a32c1f433343793710be16871465f74cf1229f51a",
+      "sha256": "988485d6786e2110ab69892ac0201246423e385c06adc539d28f92f5db1d7e7a",
       "ownership": "merge-required"
+    },
+    "schemas/repository-audit-config.schema.json": {
+      "sha256": "8be77df87f74383fbcdf06b032aef0ce3da70462554c41778f4ad39af9c498e8",
+      "ownership": "project-owned"
+    },
+    "schemas/repository-audit-report.schema.json": {
+      "sha256": "ec99eb0e97f3b253d4542bf8e59db5bda7c397135d651b136eba53de8c953131",
+      "ownership": "project-owned"
+    },
+    "scripts/package_smoke.py": {
+      "sha256": "2aac65db1bd51f6408f264fdfb0968385d7f9e43f095b9e826b54f0f243ad5bd",
+      "ownership": "project-owned"
+    },
+    "src/agentic_repo_auditor/__init__.py": {
+      "sha256": "6fbaa300a8673861d6694d74d912ca6ad389c5fad514f25f7e93c8ee196c5eeb",
+      "ownership": "project-owned"
+    },
+    "src/agentic_repo_auditor/__main__.py": {
+      "sha256": "d82d039ec390708304628da0566d2a0b3de8cb8d3f3e4010e42bd12b4f51912b",
+      "ownership": "project-owned"
+    },
+    "src/agentic_repo_auditor/audit.py": {
+      "sha256": "bca20c83a0ca3274051a0ccbb46ac2b7753e7bf7ce2541249da0c84c08c5881a",
+      "ownership": "project-owned"
+    },
+    "src/agentic_repo_auditor/cli.py": {
+      "sha256": "de10f5be940f0633a3eb2f911d09a2eaba4d42ab01236e884ff1ce8276865b32",
+      "ownership": "project-owned"
+    },
+    "src/agentic_repo_auditor/model.py": {
+      "sha256": "89d1967e9f2ad1c173cd9bb0f29f175f5cbe7f563a889291dd87dcbae2a3b38f",
+      "ownership": "project-owned"
+    },
+    "src/agentic_repo_auditor/render.py": {
+      "sha256": "46bc07187b2529b0d447aa983c20fc9903ea4a9a96d8ff8f34cd1883dfc16421",
+      "ownership": "project-owned"
     },
     "tests/test_actions_supply_chain.py": {
       "sha256": "ef5bdfc525f264ac63df27443404e63a2090820d88dc29987cd38906c9049fa0",
+      "ownership": "upstream-owned"
+    },
+    "tests/test_auditor.py": {
+      "sha256": "75bd0d233a9de9d36e2b17cf9ae5fc8e735b11eb9c48620eeda018354f1fc5e2",
+      "ownership": "upstream-owned"
+    },
+    "tests/test_auditor_cli.py": {
+      "sha256": "70665d4aa3c933cdda812690db1f53f2decb46851fbd8d35830e7c0ff23c1e09",
       "ownership": "upstream-owned"
     },
     "tests/test_challenges.py": {
@@ -512,7 +568,7 @@
       "ownership": "upstream-owned"
     },
     "uv.lock": {
-      "sha256": "bbc5c44253a0602284b243bca8370b4440090d6c4133554b6748ac8ae7571c88",
+      "sha256": "bd9c421d6daf0136203d0b8c34ed92ba7758c4bebd44365dc8d4a93ec1502b07",
       "ownership": "merge-required"
     }
   }
