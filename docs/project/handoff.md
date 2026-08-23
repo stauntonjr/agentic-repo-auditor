@@ -16,10 +16,10 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Product version: 0.1.0, unreleased.
 - Project status: active; greenfield intake accepted 2026-08-22.
 - Completed product loop: `20260822T164511Z-33525376`, revision 4 attempt 1 for LOCAL-1, reported at content-equivalent rewritten commit `7de7119` after independent AC1-AC5 approval.
-- Active publication loop: `20260822T195818Z-743477c6` for LOCAL-2.
 - Architecture: ADR-0006 accepted by the human owner on 2026-08-22.
-- Publication state: public source publication at `stauntonjr/agentic-repo-auditor` is authorized and in progress; no tag, GitHub Release, or package-registry publication is authorized.
+- Publication state: public source is available at `stauntonjr/agentic-repo-auditor`; no tag, GitHub Release, or package-registry publication is authorized.
 - Product release state: version 0.1.0 remains unreleased.
+- First existing-repository dogfood: Issue #8 audits public S3NTINEL commit `14ba0416e06f6a9b57a8f7b02fdef1bb09a2f1cc`; canonical JSON, Markdown, and triage live under `docs/reports/`.
 
 ## Implemented product slice
 
@@ -51,11 +51,16 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Open decisions
 
-- Which existing repository should be the first published dogfood report target.
+- Which satisfiable portable evidence should resolve the project-contract finding (Issue #12).
+- Which portable machine-readable primary-check declarations should be recognized beyond the template contract (Issue #14).
 - Whether GitHub Project creation should copy a canonical user Project or render fields from desired state.
 - When to add an authenticated, read-only GitHub evidence adapter.
 - Whether downstream consumers require SARIF export or cross-run baselining.
 - The separate product boundary and name for full-application assessment.
+
+## Recommended next loop
+
+Repair the deterministic false warning in Issue #13 before auditing a second existing repository. Keep Issues #12 and #14 in `Needs Input` until their evidence contracts are decided.
 
 ## Refresh protocol
 
