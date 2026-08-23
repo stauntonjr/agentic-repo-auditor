@@ -21,6 +21,8 @@ All notable product changes are recorded here. Product and harness versions are 
 - Scoped Action extraction to reusable-job and action-step schema locations, including aliases and merges.
 - Enforced top-level Skill metadata, directory/name equality, specification length limits, and CRLF compatibility.
 - Applied shared YAML node-count and nesting-depth limits before workflow or Skill interpretation.
+- Replaced literal-substring agent-instruction checks with token-bounded, explainable vocabulary
+  that recognizes equivalent authority, testing, safety, and verification terms.
 
 ## Harness baseline [0.4.0] - 2026-08-22
 

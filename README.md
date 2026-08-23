@@ -17,6 +17,19 @@ The first report covers six categories:
 
 Every finding has a stable ID, status, severity, description, source evidence, and remediation. The report does not collapse unlike evidence into an opaque numeric grade.
 
+Agent-instruction coverage is deliberately lexical and explainable rather than model-scored. It
+tokenizes `AGENTS.md` and checks a documented bounded vocabulary for source or authority,
+testing, safety, and verification. Equivalent terms such as `authoritative` may satisfy a signal;
+the report records the exact matched term. This does not prove that the instructions are correct,
+complete, or followed.
+
+The recognized lowercase word tokens are fixed in four groups:
+
+- source or authority: `source`, `sources`, `authority`, `authoritative`, `precedence`;
+- testing: `test`, `tests`, `testing`;
+- safety: `safe`, `safely`, `safety`; and
+- verification: `verify`, `verified`, `verification`, `validate`, `validation`.
+
 ## Install and run
 
 The project currently supports Python 3.11 and newer.

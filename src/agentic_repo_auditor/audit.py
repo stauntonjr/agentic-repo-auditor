@@ -43,6 +43,13 @@ MAX_NESTED_REPOSITORIES = 128
 MAX_YAML_NODES = 20_000
 MAX_YAML_DEPTH = 100
 FILTER_KEY = re.compile(r"^filter\.(.+)\.(?:clean|smudge|process|required)$", re.IGNORECASE)
+INSTRUCTION_WORD = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+INSTRUCTION_SIGNAL_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("source", ("source", "sources", "authority", "authoritative", "precedence")),
+    ("test", ("test", "tests", "testing")),
+    ("safety", ("safe", "safely", "safety")),
+    ("verification", ("verify", "verified", "verification", "validate", "validation")),
+)
 
 
 @dataclass(frozen=True)
@@ -865,17 +872,29 @@ def _testing_suite(root: Path, _: str) -> Finding:
 
 
 def _agent_instruction_quality(root: Path, _: str) -> Finding:
-    required_signals = ("source", "test", "safety", "verification")
     content = (_read_repository_text(root, "AGENTS.md") or "").lower()
-    present = tuple(signal for signal in required_signals if signal in content)
+    words = frozenset(INSTRUCTION_WORD.findall(content))
+    matches = tuple(
+        (signal, next((term for term in terms if term in words), None))
+        for signal, terms in INSTRUCTION_SIGNAL_TERMS
+    )
+    present = tuple(signal for signal, match in matches if match is not None)
+    missing = tuple(signal for signal, match in matches if match is None)
+    matched_terms = tuple(f"{signal}:{match}" for signal, match in matches if match is not None)
     return _finding(
         "agent-readiness.instructions",
         "agent-readiness",
-        "pass" if len(present) == len(required_signals) else "warn",
-        "info" if len(present) == len(required_signals) else "medium",
+        "pass" if not missing else "warn",
+        "info" if not missing else "medium",
         "Agent instruction coverage",
         "Repository instructions expose core evidence, verification, and safety signals.",
-        [Evidence("signal-set", "AGENTS.md", f"present={list(present)}")],
+        [
+            Evidence(
+                "signal-set",
+                "AGENTS.md",
+                f"present={list(present)}; missing={list(missing)}; matches={list(matched_terms)}",
+            )
+        ],
         "Document source precedence, tests, verification boundaries, and safety constraints.",
     )
 
