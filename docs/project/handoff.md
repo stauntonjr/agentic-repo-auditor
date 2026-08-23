@@ -20,6 +20,9 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Publication state: public source is available at `stauntonjr/agentic-repo-auditor`; no tag, GitHub Release, or package-registry publication is authorized.
 - Product release state: version 0.1.0 remains unreleased.
 - First existing-repository dogfood: Issue #8 audits public S3NTINEL commit `14ba0416e06f6a9b57a8f7b02fdef1bb09a2f1cc`; canonical JSON, Markdown, and triage live under `docs/reports/`.
+- Issue #13 repairs the dogfood's false instruction-coverage warning with a deterministic,
+  token-bounded vocabulary and exact matched-term evidence; it does not claim semantic prose
+  understanding.
 
 ## Implemented product slice
 
@@ -60,7 +63,8 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Recommended next loop
 
-Repair the deterministic false warning in Issue #13 before auditing a second existing repository. Keep Issues #12 and #14 in `Needs Input` until their evidence contracts are decided.
+Decide the satisfiable project-contract evidence in Issue #12, then the portable primary-check
+declaration in Issue #14, before auditing a second existing repository.
 
 ## Refresh protocol
 

@@ -515,6 +515,46 @@ class AuditorTests(unittest.TestCase):
         self.assertEqual(first_finding, second_finding)
         self.assertEqual("warn", first_finding.status)
 
+    def test_instruction_coverage_recognizes_bounded_equivalent_vocabulary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            (root / "AGENTS.md").write_text(
+                "Treat current code and contracts as authoritative.\n"
+                "Run tests, follow safety limits, and record verification results.\n",
+                encoding="utf-8",
+            )
+            report = audit_repository(root)
+
+        finding = next(
+            item for item in report.findings if item.finding_id == "agent-readiness.instructions"
+        )
+        self.assertEqual("pass", finding.status)
+        self.assertEqual(
+            "present=['source', 'test', 'safety', 'verification']; missing=[]; "
+            "matches=['source:authoritative', 'test:tests', 'safety:safety', "
+            "'verification:verification']",
+            finding.evidence[0].value,
+        )
+
+    def test_instruction_coverage_keeps_incomplete_prose_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            (root / "AGENTS.md").write_text(
+                "Authoritative contest results are documented.\n", encoding="utf-8"
+            )
+            report = audit_repository(root)
+
+        finding = next(
+            item for item in report.findings if item.finding_id == "agent-readiness.instructions"
+        )
+        self.assertEqual("warn", finding.status)
+        self.assertIn("missing=['test', 'safety', 'verification']", finding.evidence[0].value)
+        self.assertNotIn("test:contest", finding.evidence[0].value)
+
     def test_quoted_skill_metadata_is_valid(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "fixture"
