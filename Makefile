@@ -34,7 +34,7 @@ product-version:
 
 harness-lock:
 	# Derived repositories advance the upstream base lock only through a reviewed upgrade.
-	python3 tools/harness_upgrade.py status
+	python3 scripts/check_harness_lock.py
 
 harness-eval-validate:
 	python3 tools/evaluate_harness.py

@@ -309,7 +309,7 @@
     },
     "harness/ownership.json": {
       "sha256": "74868c127a556a51d2d591c99e53809be4432442e0efe83c4ea223c33cfa0846",
-      "ownership": "upstream-owned"
+      "ownership": "merge-required"
     },
     "harness/preferences.example.json": {
       "sha256": "500586e6747936f99a4b5679d86c5fc5f5c24b4d07dccc08d6d35c63e3e3126b",
@@ -433,7 +433,7 @@
     },
     "tests/test_harness_upgrade.py": {
       "sha256": "512deee5728aeb4d8904a4f3c5eb488e8945b4989bac1c255c67ff7533bd9997",
-      "ownership": "upstream-owned"
+      "ownership": "merge-required"
     },
     "tests/test_loop.py": {
       "sha256": "6e08f992d6555054642f0388e128e4b4a8481a0ea49292f8a0149c071e95bab2",

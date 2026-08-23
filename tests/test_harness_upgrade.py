@@ -1,5 +1,8 @@
 import json
 from pathlib import Path
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -60,10 +63,10 @@ def make_release(root: Path, version: str, payload: str, policy_text: str) -> No
 
 
 class HarnessUpgradeTests(unittest.TestCase):
-    def test_derived_harness_lock_target_cannot_regenerate_the_upstream_base(self) -> None:
+    def test_derived_harness_lock_target_strictly_validates_the_upstream_base(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         target = makefile.split("harness-lock:\n", 1)[1].split("\n\nharness-eval-validate:", 1)[0]
-        self.assertIn("harness_upgrade.py status", target)
+        self.assertIn("scripts/check_harness_lock.py", target)
         self.assertNotIn("harness_upgrade.py lock", target)
 
         lock = json.loads((ROOT / "harness.lock").read_text(encoding="utf-8"))
@@ -73,6 +76,81 @@ class HarnessUpgradeTests(unittest.TestCase):
             "497407dd94d40beed0847bf170684507434a74c8",
             lock["upstream"]["commit"],
         )
+
+        passed = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/check_harness_lock.py"), "--root", str(ROOT)],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(0, passed.returncode, passed.stdout + passed.stderr)
+
+        with tempfile.TemporaryDirectory() as directory:
+            copy = Path(directory) / "repository"
+            shutil.copytree(
+                ROOT,
+                copy,
+                ignore=shutil.ignore_patterns(".git", ".harness", ".venv", "__pycache__"),
+            )
+            upstream_file = copy / "tools/github_planning.py"
+            upstream_file.write_text(
+                upstream_file.read_text(encoding="utf-8") + "\n# unexpected drift\n",
+                encoding="utf-8",
+            )
+            failed = subprocess.run(
+                [
+                    sys.executable,
+                    str(copy / "scripts/check_harness_lock.py"),
+                    "--root",
+                    str(copy),
+                ],
+                cwd=copy,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, failed.returncode, failed.stdout + failed.stderr)
+            self.assertIn("upstream-owned harness file is modified", failed.stdout)
+
+            shutil.copy2(ROOT / "tools/github_planning.py", upstream_file)
+            missing_upstream = copy / ".agents/skills/loop-report/SKILL.md"
+            missing_upstream.unlink()
+            missing = subprocess.run(
+                [
+                    sys.executable,
+                    str(copy / "scripts/check_harness_lock.py"),
+                    "--root",
+                    str(copy),
+                ],
+                cwd=copy,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, missing.returncode, missing.stdout + missing.stderr)
+            self.assertIn("upstream-owned harness file is missing", missing.stdout)
+
+            shutil.copy2(ROOT / ".agents/skills/loop-report/SKILL.md", missing_upstream)
+            for relative in ("docs/project/engineering-baseline.md", "CONTRIBUTING.md"):
+                path = copy / relative
+                path.write_text(
+                    path.read_text(encoding="utf-8") + "\nProject-owned reconciliation.\n",
+                    encoding="utf-8",
+                )
+            allowed = subprocess.run(
+                [
+                    sys.executable,
+                    str(copy / "scripts/check_harness_lock.py"),
+                    "--root",
+                    str(copy),
+                ],
+                cwd=copy,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, allowed.returncode, allowed.stdout + allowed.stderr)
 
     def test_migration_plan_is_non_mutating_and_marks_manual_review(self) -> None:
         current = json.loads((ROOT / "harness/project.yaml").read_text(encoding="utf-8"))[
