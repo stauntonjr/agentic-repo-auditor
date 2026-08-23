@@ -15,6 +15,7 @@ from tools.harness_upgrade import (
     validate_lock,
     validate_manifest,
 )
+from scripts.reconcile_harness_lock_ownership import reconcile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -151,6 +152,74 @@ class HarnessUpgradeTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(0, allowed.returncode, allowed.stdout + allowed.stderr)
+
+            changed_lock = json.loads((copy / "harness.lock").read_text(encoding="utf-8"))
+            changed_lock["files"]["tools/github_planning.py"]["ownership"] = "merge-required"
+            write_json(copy / "harness.lock", changed_lock)
+            mismatch = subprocess.run(
+                [
+                    sys.executable,
+                    str(copy / "scripts/check_harness_lock.py"),
+                    "--root",
+                    str(copy),
+                ],
+                cwd=copy,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(1, mismatch.returncode, mismatch.stdout + mismatch.stderr)
+            self.assertIn("lock ownership differs from project policy", mismatch.stdout)
+
+    def test_ownership_reconciliation_receipt_chains_with_release_rollback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "project"
+            source = base / "release"
+            root.mkdir()
+            source.mkdir()
+            make_release(root, "1.0.0", "old\n", "same policy\n")
+            make_release(source, "2.0.0", "new\n", "same policy\n")
+
+            downstream_policy = json.loads(
+                (root / "harness/ownership.json").read_text(encoding="utf-8")
+            )
+            for rule in downstream_policy["rules"]:
+                if rule["pattern"] == "harness/ownership.json":
+                    rule["ownership"] = "merge-required"
+            write_json(root / "harness/ownership.json", downstream_policy)
+            before = {
+                path: (root / path).read_bytes()
+                for path in (
+                    "harness.lock",
+                    "harness/project.yaml",
+                    "harness/version.json",
+                    "payload.txt",
+                )
+            }
+
+            plan = build_release_plan(root, source)
+            resolutions = {
+                item["path"]: "keep-local"
+                for item in plan["operations"]
+                if item["disposition"] == "manual"
+            }
+            release_receipt = apply_release_plan(
+                root,
+                source,
+                plan,
+                resolutions,
+                receipt_root=base / "release-receipt",
+            )
+            ownership_receipt = reconcile(
+                root,
+                receipt_root=base / "ownership-receipt",
+            )
+
+            rollback_receipt(root, ownership_receipt)
+            rollback_receipt(root, release_receipt)
+            for path, content in before.items():
+                self.assertEqual(content, (root / path).read_bytes(), path)
 
     def test_migration_plan_is_non_mutating_and_marks_manual_review(self) -> None:
         current = json.loads((ROOT / "harness/project.yaml").read_text(encoding="utf-8"))[
