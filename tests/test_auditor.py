@@ -660,6 +660,169 @@ class AuditorTests(unittest.TestCase):
             {"security.dependency-updates": "warn", "security.policy": "warn"}, statuses
         )
 
+    def test_project_contract_supports_configured_path_and_disposition(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            boundary = Path(directory)
+            root = boundary / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            (root / "harness/project.yaml").unlink()
+            (root / "project-contract.json").write_text(
+                json.dumps({"name": "portable fixture"}), encoding="utf-8"
+            )
+            path_config_file = boundary / "path-config.json"
+            path_config_file.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.1",
+                        "evidence": {"project_contract": {"path": "project-contract.json"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            path_config = load_config(path_config_file)
+            first = audit_repository(root, path_config)
+            second = audit_repository(root, path_config)
+
+            disposition_config_file = boundary / "disposition-config.json"
+            disposition_config_file.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.1",
+                        "evidence": {
+                            "project_contract": {
+                                "not_applicable_reason": (
+                                    "This repository is a single-purpose fixture with no delegated authority."
+                                )
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            disposition_report = audit_repository(root, load_config(disposition_config_file))
+
+        finding = next(
+            item for item in first.findings if item.finding_id == "governance.project-contract"
+        )
+        self.assertEqual("pass", finding.status)
+        self.assertEqual(
+            ["project-contract.json"],
+            [item.path for item in finding.evidence if item.kind == "configured-project-contract"],
+        )
+        self.assertEqual(render_json(first), render_json(second))
+        self.assertEqual(
+            {"path": "project-contract.json"},
+            first.as_dict()["configuration"]["evidence"]["project_contract"],
+        )
+        self.assertIn("configured path `project-contract.json`", render_markdown(first))
+        disposition = next(
+            item
+            for item in disposition_report.findings
+            if item.finding_id == "governance.project-contract"
+        )
+        self.assertEqual("not-applicable", disposition.status)
+        self.assertIn("single-purpose fixture", disposition.evidence[0].value)
+
+    def test_project_contract_absent_and_malformed_automatic_evidence_warns(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            contract = root / "harness/project.yaml"
+            contract.unlink()
+            absent_report = audit_repository(root)
+            contract.write_text("[]\n", encoding="utf-8")
+            malformed_report = audit_repository(root)
+
+        absent = next(
+            item
+            for item in absent_report.findings
+            if item.finding_id == "governance.project-contract"
+        )
+        malformed = next(
+            item
+            for item in malformed_report.findings
+            if item.finding_id == "governance.project-contract"
+        )
+        self.assertEqual(("warn", "warn"), (absent.status, malformed.status))
+        self.assertEqual("project-contract-error", malformed.evidence[0].kind)
+
+    def test_configured_project_contract_rejects_malformed_and_unsafe_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            boundary = Path(directory)
+            root = boundary / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            (root / "malformed.yaml").write_text("[]\n", encoding="utf-8")
+            outside = boundary / "outside.json"
+            outside.write_text('{"outside": true}\n', encoding="utf-8")
+            os.symlink(outside, root / "linked.json")
+            (root / "contract-dir.json").mkdir()
+            outside_directory = boundary / "outside-directory"
+            outside_directory.mkdir()
+            (outside_directory / "contract.json").write_text(
+                '{"outside": true}\n', encoding="utf-8"
+            )
+            os.symlink(outside_directory, root / "linked-directory")
+
+            for relative, expected in (
+                ("missing.json", "absent"),
+                ("malformed.yaml", "non-empty object"),
+                ("linked.json", "symlink"),
+                ("contract-dir.json", "directory"),
+                ("linked-directory/contract.json", "symlink"),
+            ):
+                with self.subTest(relative=relative):
+                    config_file = boundary / f"{relative.replace('/', '-')}.config.json"
+                    config_file.write_text(
+                        json.dumps(
+                            {
+                                "schema_version": "1.1",
+                                "evidence": {"project_contract": {"path": relative}},
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(AuditError, expected):
+                        audit_repository(root, load_config(config_file))
+
+            for declaration in (
+                {"path": "../outside.json"},
+                {"path": "/absolute.json"},
+                {"path": "contract.txt"},
+                {"path": " contract.json"},
+                {"not_applicable_reason": ""},
+                {"not_applicable_reason": "line one\nline two"},
+                {"path": "contract.json", "not_applicable_reason": "conflict"},
+            ):
+                with self.subTest(declaration=declaration):
+                    config_file = boundary / "invalid-config.json"
+                    config_file.write_text(
+                        json.dumps(
+                            {
+                                "schema_version": "1.1",
+                                "evidence": {"project_contract": declaration},
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaises(AuditError):
+                        load_config(config_file)
+
+            legacy_with_evidence = boundary / "legacy-with-evidence.json"
+            legacy_with_evidence.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "evidence": {"project_contract": {"not_applicable_reason": "legacy"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(AuditError, "requires schema_version 1.1"):
+                load_config(legacy_with_evidence)
+
     def test_config_disables_known_check_and_rejects_unknown_input(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

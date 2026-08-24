@@ -10,6 +10,8 @@ All notable product changes are recorded here. Product and harness versions are 
 - Versioned configuration and report schemas.
 - Governance, Git, CI, security, testing, and agent-readiness checks.
 - Clean-install package and CLI verification.
+- Portable project-contract evidence through a safe repository-relative JSON or YAML path, or an
+  explicit bounded not-applicable disposition.
 
 ### Changed
 
@@ -23,6 +25,8 @@ All notable product changes are recorded here. Product and harness versions are 
 - Applied shared YAML node-count and nesting-depth limits before workflow or Skill interpretation.
 - Replaced literal-substring agent-instruction checks with token-bounded, explainable vocabulary
   that recognizes equivalent authority, testing, safety, and verification terms.
+- Advanced configuration and report schemas to 1.1 for normalized, deterministic evidence
+  declarations while preserving schema 1.0 inputs without declarations.
 
 ## Harness baseline [0.4.0] - 2026-08-22
 

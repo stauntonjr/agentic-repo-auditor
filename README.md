@@ -62,7 +62,42 @@ Configuration is optional JSON:
 }
 ```
 
-Run with `--config path/to/config.json`. Unknown keys and unknown check IDs fail closed. The versioned schema is [repository-audit-config.schema.json](schemas/repository-audit-config.schema.json).
+Schema 1.1 adds portable evidence declarations. A general repository may declare a safe
+repository-relative JSON or YAML project contract:
+
+```json
+{
+  "schema_version": "1.1",
+  "evidence": {
+    "project_contract": {"path": "docs/project-contract.yaml"}
+  }
+}
+```
+
+If a machine-readable project contract is genuinely not applicable, record the disposition rather
+than disabling the finding:
+
+```json
+{
+  "schema_version": "1.1",
+  "evidence": {
+    "project_contract": {
+      "not_applicable_reason": "This repository contains one immutable policy document and delegates no project authority."
+    }
+  }
+}
+```
+
+`harness/project.yaml` remains automatic evidence when no declaration is configured. Configured
+paths must be normalized repository-relative `.json`, `.yaml`, or `.yml` paths to bounded UTF-8,
+non-symlink regular files containing a non-empty object. Missing, malformed, escaping, or symlinked
+configured evidence fails closed with exit status 2. Explicit dispositions appear as
+`not-applicable` findings with the exact reason; they do not remove the finding.
+
+Run with `--config path/to/config.json`. Schema 1.0 remains accepted without evidence declarations.
+Unknown keys, evidence declarations, and check IDs fail closed. The versioned schema is
+[repository-audit-config.schema.json](schemas/repository-audit-config.schema.json); the decision
+boundary is recorded in [ADR-0007](docs/adr/0007-portable-evidence-declarations.md).
 
 ## Report contract
 
@@ -74,7 +109,10 @@ JSON is the canonical machine representation. Markdown is generated deterministi
 - fixed-order summary counts; and
 - findings sorted by stable ID with sorted evidence.
 
-The schema is [repository-audit-report.schema.json](schemas/repository-audit-report.schema.json). Wall-clock timestamps and absolute target paths are deliberately omitted so repeated audits of the same state are byte-identical and disclose less local information.
+Report schema 1.1 includes the normalized configured-evidence object. The schema is
+[repository-audit-report.schema.json](schemas/repository-audit-report.schema.json). Wall-clock
+timestamps and absolute target paths are deliberately omitted so repeated audits of the same state
+are byte-identical and disclose less local information.
 
 ## Development
 

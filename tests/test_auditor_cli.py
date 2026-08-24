@@ -106,6 +106,46 @@ class AuditorCliTests(unittest.TestCase):
         self.assertNotIn("Traceback", config.stderr)
         self.assertIn("cannot read configuration", config.stderr)
 
+    def test_configured_project_contract_is_deterministic_read_only_and_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            boundary = Path(directory)
+            target = boundary / "fixture"
+            target.mkdir()
+            initialize_repository(target)
+            (target / "harness/project.yaml").unlink()
+            (target / "contract.yaml").write_text("name: portable fixture\n", encoding="utf-8")
+            config_path = boundary / "config.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.1",
+                        "evidence": {"project_contract": {"path": "contract.yaml"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            before = snapshot_tree(target)
+            first = self.run_cli(
+                "audit", str(target), "--config", str(config_path), "--format", "json"
+            )
+            middle = snapshot_tree(target)
+            second = self.run_cli(
+                "audit", str(target), "--config", str(config_path), "--format", "json"
+            )
+            after = snapshot_tree(target)
+            (target / "contract.yaml").write_text("[]\n", encoding="utf-8")
+            malformed = self.run_cli(
+                "audit", str(target), "--config", str(config_path), "--format", "json"
+            )
+
+        self.assertEqual(0, first.returncode, first.stderr)
+        self.assertEqual(first.stdout, second.stdout)
+        self.assertEqual(before, middle)
+        self.assertEqual(before, after)
+        self.assertEqual(2, malformed.returncode)
+        self.assertNotIn("Traceback", malformed.stderr)
+        self.assertIn("non-empty object", malformed.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

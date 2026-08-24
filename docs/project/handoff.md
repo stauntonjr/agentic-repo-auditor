@@ -16,19 +16,23 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Product version: 0.1.0, unreleased.
 - Project status: active; greenfield intake accepted 2026-08-22.
 - Completed product loop: `20260822T164511Z-33525376`, revision 4 attempt 1 for LOCAL-1, reported at content-equivalent rewritten commit `7de7119` after independent AC1-AC5 approval.
-- Architecture: ADR-0006 accepted by the human owner on 2026-08-22.
+- Architecture: ADR-0006 accepted on 2026-08-22; ADR-0007 portable evidence declarations accepted
+  by the human owner on 2026-08-24.
 - Publication state: public source is available at `stauntonjr/agentic-repo-auditor`; no tag, GitHub Release, or package-registry publication is authorized.
 - Product release state: version 0.1.0 remains unreleased.
 - First existing-repository dogfood: Issue #8 audits public S3NTINEL commit `14ba0416e06f6a9b57a8f7b02fdef1bb09a2f1cc`; canonical JSON, Markdown, and triage live under `docs/reports/`.
 - Issue #13 repairs the dogfood's false instruction-coverage warning with a deterministic,
   token-bounded vocabulary and exact matched-term evidence; it does not claim semantic prose
   understanding.
+- Issue #12 adds schema-1.1 portable project-contract evidence: a safe repository-relative JSON or
+  YAML object or an explicit bounded not-applicable reason. Automatic `harness/project.yaml`
+  compatibility remains.
 
 ## Implemented product slice
 
 - Read-only local Git repository audit CLI.
 - Deterministic JSON and Markdown rendering from one finding/evidence model.
-- Versioned configuration and report schemas.
+- Versioned configuration and report schemas, including normalized portable evidence declarations.
 - Stable finding IDs, explicit status and severity, evidence, remediation, and target state identity.
 - Governance, Git, CI, security, testing, and agent-readiness checks.
 - Configurable check suppression with fail-closed validation.
@@ -54,7 +58,6 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Open decisions
 
-- Which satisfiable portable evidence should resolve the project-contract finding (Issue #12).
 - Which portable machine-readable primary-check declarations should be recognized beyond the template contract (Issue #14).
 - Whether GitHub Project creation should copy a canonical user Project or render fields from desired state.
 - When to add an authenticated, read-only GitHub evidence adapter.
@@ -63,8 +66,8 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Recommended next loop
 
-Decide the satisfiable project-contract evidence in Issue #12, then the portable primary-check
-declaration in Issue #14, before auditing a second existing repository.
+Implement the approved portable primary-check declaration in Issue #14 on ADR-0007's evidence
+configuration foundation, then audit a second existing repository.
 
 ## Refresh protocol
 

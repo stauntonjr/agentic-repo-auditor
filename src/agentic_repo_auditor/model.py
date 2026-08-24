@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 STATUSES = ("pass", "warn", "fail", "not-applicable", "unknown")
 SEVERITIES = ("info", "low", "medium", "high")
 CATEGORIES = ("governance", "git", "ci", "security", "testing", "agent-readiness")
@@ -81,6 +81,24 @@ class TargetState:
 
 
 @dataclass(frozen=True)
+class ProjectContractDeclaration:
+    """Normalized configured evidence for the project-contract finding."""
+
+    path: str | None = None
+    not_applicable_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if (self.path is None) == (self.not_applicable_reason is None):
+            raise ValueError("project contract declaration requires exactly one disposition")
+
+    def as_dict(self) -> dict[str, str]:
+        if self.path is not None:
+            return {"path": self.path}
+        assert self.not_applicable_reason is not None
+        return {"not_applicable_reason": self.not_applicable_reason}
+
+
+@dataclass(frozen=True)
 class Report:
     """Complete deterministic audit report."""
 
@@ -89,6 +107,7 @@ class Report:
     target: TargetState
     findings: tuple[Finding, ...]
     disabled_checks: tuple[str, ...] = ()
+    project_contract: ProjectContractDeclaration | None = None
 
     def as_dict(self) -> dict[str, Any]:
         ordered = tuple(sorted(self.findings, key=lambda item: item.finding_id))
@@ -100,7 +119,16 @@ class Report:
             "schema_version": SCHEMA_VERSION,
             "tool": {"name": self.tool_name, "version": self.tool_version},
             "target": self.target.as_dict(),
-            "configuration": {"disabled_checks": list(sorted(self.disabled_checks))},
+            "configuration": {
+                "disabled_checks": list(sorted(self.disabled_checks)),
+                "evidence": {
+                    "project_contract": (
+                        self.project_contract.as_dict()
+                        if self.project_contract is not None
+                        else None
+                    )
+                },
+            },
             "summary": {
                 "total": len(ordered),
                 "by_status": by_status,

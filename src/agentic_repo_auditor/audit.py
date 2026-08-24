@@ -9,7 +9,7 @@ import re
 import stat
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
 import yaml  # pyright: ignore[reportMissingModuleSource]
@@ -21,7 +21,7 @@ from yaml.nodes import (  # pyright: ignore[reportMissingModuleSource]
 )
 
 from . import __version__
-from .model import Evidence, Finding, Report, TargetState
+from .model import Evidence, Finding, ProjectContractDeclaration, Report, TargetState
 
 
 class AuditError(RuntimeError):
@@ -30,9 +30,10 @@ class AuditError(RuntimeError):
 
 @dataclass(frozen=True)
 class AuditConfig:
-    """Validated v0.1 configuration."""
+    """Validated audit configuration."""
 
     disabled_checks: frozenset[str] = frozenset()
+    project_contract: ProjectContractDeclaration | None = None
 
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -532,7 +533,7 @@ def _presence_check(
     )
 
 
-def _governance_instructions(root: Path, _: str) -> Finding:
+def _governance_instructions(root: Path, _: str, __: AuditConfig) -> Finding:
     return _presence_check(
         root,
         "governance.instructions",
@@ -544,19 +545,108 @@ def _governance_instructions(root: Path, _: str) -> Finding:
     )
 
 
-def _governance_contract(root: Path, _: str) -> Finding:
-    return _presence_check(
-        root,
+def _parse_project_contract(content: str, relative: str) -> dict[str, Any]:
+    try:
+        if relative.endswith(".json"):
+            payload = json.loads(content)
+        else:
+            document = yaml.compose(content, Loader=yaml.SafeLoader)
+            if document is None:
+                raise AuditError(f"project contract is empty: {relative}")
+            _validate_yaml_graph(document, context="project contract YAML")
+            payload = yaml.safe_load(content)
+    except (json.JSONDecodeError, yaml.YAMLError, RecursionError) as exc:
+        raise AuditError(
+            f"project contract is not valid machine-readable data: {relative}"
+        ) from exc
+    if not isinstance(payload, dict) or not payload:
+        raise AuditError(f"project contract must be a non-empty object: {relative}")
+    return payload
+
+
+def _configured_project_contract(root: Path, relative: str) -> Finding:
+    kind = _safe_kind(root, relative)
+    if kind != "file":
+        raise AuditError(f"configured project contract must be a regular file: {relative} ({kind})")
+    content = _read_repository_text(root, relative)
+    assert content is not None
+    _parse_project_contract(content, relative)
+    return _finding(
         "governance.project-contract",
         "governance",
+        "pass",
+        "info",
         "Machine-readable project contract",
-        ("harness/project.yaml",),
         "A durable project intent and authority contract is present.",
-        "Add a machine-readable project contract or document why one is not used.",
+        [Evidence("configured-project-contract", relative, "valid non-empty object")],
+        "Keep the configured machine-readable contract aligned with actual project authority.",
     )
 
 
-def _governance_community_files(root: Path, _: str) -> Finding:
+def _governance_contract(root: Path, _: str, config: AuditConfig) -> Finding:
+    declaration = config.project_contract
+    if declaration is not None:
+        if declaration.not_applicable_reason is not None:
+            return _finding(
+                "governance.project-contract",
+                "governance",
+                "not-applicable",
+                "info",
+                "Machine-readable project contract",
+                "A durable project intent and authority contract is explicitly not applicable.",
+                [
+                    Evidence(
+                        "configured-disposition",
+                        ".",
+                        f"not-applicable: {declaration.not_applicable_reason}",
+                    )
+                ],
+                "Revisit the recorded disposition if project authority becomes machine-managed.",
+            )
+        assert declaration.path is not None
+        return _configured_project_contract(root, declaration.path)
+
+    relative = "harness/project.yaml"
+    kind = _safe_kind(root, relative)
+    if kind == "file":
+        content = _read_repository_text(root, relative)
+        assert content is not None
+        try:
+            _parse_project_contract(content, relative)
+        except AuditError as exc:
+            return _finding(
+                "governance.project-contract",
+                "governance",
+                "warn",
+                "medium",
+                "Machine-readable project contract",
+                "The conventional harness project contract is present but malformed.",
+                [Evidence("project-contract-error", relative, str(exc))],
+                "Repair the non-empty machine-readable contract or configure an explicit disposition.",
+            )
+        return _finding(
+            "governance.project-contract",
+            "governance",
+            "pass",
+            "info",
+            "Machine-readable project contract",
+            "A durable project intent and authority contract is present.",
+            [Evidence("automatic-project-contract", relative, "valid non-empty object")],
+            "Keep the machine-readable contract aligned with actual project authority.",
+        )
+    return _finding(
+        "governance.project-contract",
+        "governance",
+        "warn",
+        "medium",
+        "Machine-readable project contract",
+        "No recognized project intent and authority contract or explicit disposition is present.",
+        [Evidence("project-contract", relative, f"not available ({kind})")],
+        "Add harness/project.yaml or configure a safe repository-relative contract path or explicit not-applicable reason.",
+    )
+
+
+def _governance_community_files(root: Path, _: str, __: AuditConfig) -> Finding:
     expected = ("README.md", "CONTRIBUTING.md", "LICENSE")
     present = tuple(path for path in expected if _safe_regular_file(root, path) is not None)
     missing = tuple(path for path in expected if path not in present)
@@ -572,7 +662,7 @@ def _governance_community_files(root: Path, _: str) -> Finding:
     )
 
 
-def _git_clean(root: Path, status_text: str) -> Finding:
+def _git_clean(root: Path, status_text: str, _: AuditConfig) -> Finding:
     entries = tuple(_status_paths(status_text))
     return _finding(
         "git.clean-worktree",
@@ -709,7 +799,7 @@ def _inspect_workflow(text: str) -> WorkflowInspection:
     return WorkflowInspection(tuple(references), tuple(errors))
 
 
-def _ci_workflows(root: Path, _: str) -> Finding:
+def _ci_workflows(root: Path, _: str, __: AuditConfig) -> Finding:
     paths = _workflow_paths(root)
     return _finding(
         "ci.workflows",
@@ -723,7 +813,7 @@ def _ci_workflows(root: Path, _: str) -> Finding:
     )
 
 
-def _ci_immutable_actions(root: Path, _: str) -> Finding:
+def _ci_immutable_actions(root: Path, _: str, __: AuditConfig) -> Finding:
     paths = _workflow_paths(root)
     references: list[tuple[str, str]] = []
     mutable: list[tuple[str, str]] = []
@@ -767,7 +857,7 @@ def _ci_immutable_actions(root: Path, _: str) -> Finding:
     )
 
 
-def _security_policy(root: Path, _: str) -> Finding:
+def _security_policy(root: Path, _: str, __: AuditConfig) -> Finding:
     return _presence_check(
         root,
         "security.policy",
@@ -779,7 +869,7 @@ def _security_policy(root: Path, _: str) -> Finding:
     )
 
 
-def _security_updates(root: Path, _: str) -> Finding:
+def _security_updates(root: Path, _: str, __: AuditConfig) -> Finding:
     return _presence_check(
         root,
         "security.dependency-updates",
@@ -791,7 +881,7 @@ def _security_updates(root: Path, _: str) -> Finding:
     )
 
 
-def _security_code_scanning(root: Path, _: str) -> Finding:
+def _security_code_scanning(root: Path, _: str, __: AuditConfig) -> Finding:
     paths = _workflow_paths(root)
     matched: list[str] = []
     parse_errors: list[tuple[str, str]] = []
@@ -821,7 +911,7 @@ def _security_code_scanning(root: Path, _: str) -> Finding:
     )
 
 
-def _testing_primary_check(root: Path, _: str) -> Finding:
+def _testing_primary_check(root: Path, _: str, __: AuditConfig) -> Finding:
     command = ""
     content = _read_repository_text(root, "harness/project.yaml")
     if content is not None:
@@ -842,7 +932,7 @@ def _testing_primary_check(root: Path, _: str) -> Finding:
     )
 
 
-def _testing_suite(root: Path, _: str) -> Finding:
+def _testing_suite(root: Path, _: str, __: AuditConfig) -> Finding:
     patterns = ("test_*.py", "*_test.py", "*.test.ts", "*.test.js", "*.spec.ts", "*.spec.js")
     tests: list[str] = []
     tests_root = _safe_directory(root, "tests")
@@ -871,7 +961,7 @@ def _testing_suite(root: Path, _: str) -> Finding:
     )
 
 
-def _agent_instruction_quality(root: Path, _: str) -> Finding:
+def _agent_instruction_quality(root: Path, _: str, __: AuditConfig) -> Finding:
     content = (_read_repository_text(root, "AGENTS.md") or "").lower()
     words = frozenset(INSTRUCTION_WORD.findall(content))
     matches = tuple(
@@ -937,7 +1027,7 @@ def _parse_skill_frontmatter(root: Path, relative: str) -> tuple[str, str] | Non
     return name, description
 
 
-def _agent_skills(root: Path, _: str) -> Finding:
+def _agent_skills(root: Path, _: str, __: AuditConfig) -> Finding:
     paths: list[str] = []
     skills_root = _safe_directory(root, ".agents/skills")
     if skills_root is not None:
@@ -972,7 +1062,7 @@ def _agent_skills(root: Path, _: str) -> Finding:
     )
 
 
-CHECKS: tuple[tuple[str, Callable[[Path, str], Finding]], ...] = (
+CHECKS: tuple[tuple[str, Callable[[Path, str, AuditConfig], Finding]], ...] = (
     ("governance.instructions", _governance_instructions),
     ("governance.project-contract", _governance_contract),
     ("governance.community-files", _governance_community_files),
@@ -999,11 +1089,12 @@ def load_config(path: Path | None) -> AuditConfig:
         raise AuditError(f"cannot read configuration: {exc}") from exc
     if not isinstance(payload, dict):
         raise AuditError("configuration must be a JSON object")
-    unknown_keys = sorted(set(payload) - {"schema_version", "disabled_checks"})
+    unknown_keys = sorted(set(payload) - {"schema_version", "disabled_checks", "evidence"})
     if unknown_keys:
         raise AuditError(f"unknown configuration keys: {', '.join(unknown_keys)}")
-    if payload.get("schema_version") != "1.0":
-        raise AuditError("configuration schema_version must be 1.0")
+    schema_version = payload.get("schema_version")
+    if schema_version not in {"1.0", "1.1"}:
+        raise AuditError("configuration schema_version must be 1.0 or 1.1")
     disabled = payload.get("disabled_checks", [])
     if not isinstance(disabled, list) or any(not isinstance(item, str) for item in disabled):
         raise AuditError("disabled_checks must be an array of strings")
@@ -1012,7 +1103,62 @@ def load_config(path: Path | None) -> AuditConfig:
     unknown_checks = sorted(set(disabled) - CHECK_IDS)
     if unknown_checks:
         raise AuditError(f"unknown disabled checks: {', '.join(unknown_checks)}")
-    return AuditConfig(frozenset(disabled))
+    evidence = payload.get("evidence", {})
+    if schema_version == "1.0" and "evidence" in payload:
+        raise AuditError("configuration evidence requires schema_version 1.1")
+    if not isinstance(evidence, dict):
+        raise AuditError("evidence must be an object")
+    unknown_evidence = sorted(set(evidence) - {"project_contract"})
+    if unknown_evidence:
+        raise AuditError(f"unknown evidence declarations: {', '.join(unknown_evidence)}")
+
+    declaration: ProjectContractDeclaration | None = None
+    if "project_contract" in evidence:
+        value = evidence["project_contract"]
+        if not isinstance(value, dict):
+            raise AuditError("evidence.project_contract must be an object")
+        unknown_declaration = sorted(set(value) - {"path", "not_applicable_reason"})
+        if unknown_declaration:
+            raise AuditError(
+                "unknown project-contract declaration keys: " + ", ".join(unknown_declaration)
+            )
+        if set(value) not in ({"path"}, {"not_applicable_reason"}):
+            raise AuditError(
+                "evidence.project_contract requires exactly one of path or not_applicable_reason"
+            )
+        if "path" in value:
+            relative = value["path"]
+            if not isinstance(relative, str) or relative != relative.strip():
+                raise AuditError("evidence.project_contract.path must be a trimmed string")
+            portable = PurePosixPath(relative)
+            if (
+                not relative
+                or len(relative) > 512
+                or portable.is_absolute()
+                or portable.as_posix() != relative
+                or relative == "."
+                or any(part in {"", ".", ".."} for part in portable.parts)
+                or "\\" in relative
+                or portable.suffix.lower() not in {".json", ".yaml", ".yml"}
+            ):
+                raise AuditError(
+                    "evidence.project_contract.path must be a normalized repository-relative JSON or YAML path"
+                )
+            declaration = ProjectContractDeclaration(path=relative)
+        else:
+            reason = value["not_applicable_reason"]
+            if (
+                not isinstance(reason, str)
+                or reason != reason.strip()
+                or not reason
+                or len(reason) > 500
+                or any(ord(character) < 32 for character in reason)
+            ):
+                raise AuditError(
+                    "evidence.project_contract.not_applicable_reason must be a trimmed single-line string of 1-500 characters"
+                )
+            declaration = ProjectContractDeclaration(not_applicable_reason=reason)
+    return AuditConfig(frozenset(disabled), declaration)
 
 
 def audit_repository(target: Path, config: AuditConfig | None = None) -> Report:
@@ -1029,7 +1175,7 @@ def audit_repository(target: Path, config: AuditConfig | None = None) -> Report:
         active_config = config or AuditConfig()
         target_state, status_text = _target_state(root)
         findings = tuple(
-            check(root, status_text)
+            check(root, status_text, active_config)
             for finding_id, check in CHECKS
             if finding_id not in active_config.disabled_checks
         )
@@ -1043,4 +1189,5 @@ def audit_repository(target: Path, config: AuditConfig | None = None) -> Report:
         target=target_state,
         findings=findings,
         disabled_checks=tuple(active_config.disabled_checks),
+        project_contract=active_config.project_contract,
     )

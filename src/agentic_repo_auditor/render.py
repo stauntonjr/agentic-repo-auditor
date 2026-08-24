@@ -51,11 +51,19 @@ def render_markdown(report: Report) -> str:
         )
         lines.extend([f"- Remediation: {finding['remediation']}", ""])
     disabled = payload["configuration"]["disabled_checks"]
+    project_contract = payload["configuration"]["evidence"]["project_contract"]
+    if project_contract is None:
+        project_contract_text = "automatic detection"
+    elif "path" in project_contract:
+        project_contract_text = f"configured path `{project_contract['path']}`"
+    else:
+        project_contract_text = "not applicable: " + project_contract["not_applicable_reason"]
     lines.extend(
         [
             "## Configuration",
             "",
             f"Disabled checks: {', '.join(f'`{item}`' for item in disabled) or 'none'}.",
+            f"Project-contract evidence: {project_contract_text}.",
             "",
         ]
     )
