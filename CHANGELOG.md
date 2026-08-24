@@ -14,6 +14,8 @@ All notable product changes are recorded here. Product and harness versions are 
   explicit bounded not-applicable disposition.
 - Portable primary-check evidence through an exact command and safe repository-relative provenance
   source, or an explicit bounded not-applicable disposition.
+- A primary-source landscape, provisional exchange contract, and pre-bootstrap intake decision
+  packet for the explicitly separate full-application assessment companion.
 
 ### Changed
 

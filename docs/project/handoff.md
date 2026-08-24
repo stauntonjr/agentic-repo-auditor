@@ -70,12 +70,17 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Whether GitHub Project creation should copy a canonical user Project or render fields from desired state.
 - When to add an authenticated, read-only GitHub evidence adapter.
 - Whether downstream consumers require SARIF export or cross-run baselining.
-- The separate product boundary and name for full-application assessment.
+- The separate full-application assessment companion is in pre-bootstrap intake under Issue #11.
+  Research recommends a local, read-only evidence compiler with versioned adapters and a working
+  name of `agentic-application-assessor`; audience, first dogfood target, model boundary, name,
+  license, profile, and publication policy still require human approval. No companion repository
+  exists.
 
 ## Recommended next loop
 
-Use both existing-repository dogfood datasets to choose among authenticated GitHub evidence,
-SARIF, baselining, and the separate full-application companion already governed by Issue #11.
+Complete the focused human decisions in
+`docs/project/full-application-companion-intake.md`. If accepted, bootstrap the separate companion
+through `project-intake`; do not expand this Auditor or create the repository by inference.
 
 ## Refresh protocol
 
