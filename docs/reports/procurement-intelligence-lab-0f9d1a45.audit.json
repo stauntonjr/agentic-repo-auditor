@@ -1,0 +1,250 @@
+{
+  "configuration": {
+    "disabled_checks": [],
+    "evidence": {
+      "primary_check": {
+        "command": "make check",
+        "source": "Makefile"
+      },
+      "project_contract": null
+    }
+  },
+  "findings": [
+    {
+      "category": "agent-readiness",
+      "description": "Repository instructions expose core evidence, verification, and safety signals.",
+      "evidence": [
+        {
+          "kind": "signal-set",
+          "path": "AGENTS.md",
+          "value": "present=['source', 'test', 'verification']; missing=['safety']; matches=['source:authority', 'test:test', 'verification:validate']"
+        }
+      ],
+      "id": "agent-readiness.instructions",
+      "remediation": "Document source precedence, tests, verification boundaries, and safety constraints.",
+      "severity": "medium",
+      "status": "warn",
+      "title": "Agent instruction coverage"
+    },
+    {
+      "category": "agent-readiness",
+      "description": "Repository skills use discoverable SKILL.md files with basic portable metadata.",
+      "evidence": [
+        {
+          "kind": "path-count",
+          "path": ".agents/skills",
+          "value": "13"
+        }
+      ],
+      "id": "agent-readiness.skills",
+      "remediation": "Use one skill directory per capability with valid name and description frontmatter.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Portable agent skills"
+    },
+    {
+      "category": "ci",
+      "description": "External Actions and container actions use immutable references.",
+      "evidence": [
+        {
+          "kind": "action-summary",
+          "path": ".github/workflows",
+          "value": "references=27"
+        }
+      ],
+      "id": "ci.immutable-actions",
+      "remediation": "Pin third-party Actions to full commit SHAs and containers to image digests.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Immutable workflow dependencies"
+    },
+    {
+      "category": "ci",
+      "description": "At least one repository CI workflow is present.",
+      "evidence": [
+        {
+          "kind": "path-count",
+          "path": ".github/workflows",
+          "value": "6"
+        }
+      ],
+      "id": "ci.workflows",
+      "remediation": "Add CI that runs the same authoritative check used locally.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Continuous integration workflows"
+    },
+    {
+      "category": "git",
+      "description": "The audit records whether the target has uncommitted or untracked state.",
+      "evidence": [
+        {
+          "kind": "git-status",
+          "path": ".",
+          "value": "changed_entries=0"
+        }
+      ],
+      "id": "git.clean-worktree",
+      "remediation": "Review and intentionally preserve, commit, or ignore outstanding worktree entries.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Worktree state"
+    },
+    {
+      "category": "governance",
+      "description": "Basic purpose, contribution, and licensing files are present.",
+      "evidence": [
+        {
+          "kind": "path-set",
+          "path": ".",
+          "value": "present=['README.md', 'LICENSE']; missing=['CONTRIBUTING.md']"
+        }
+      ],
+      "id": "governance.community-files",
+      "remediation": "Add the missing community health files and keep them aligned with actual behavior.",
+      "severity": "low",
+      "status": "warn",
+      "title": "Community health files"
+    },
+    {
+      "category": "governance",
+      "description": "Repository-level agent and contributor instructions are discoverable.",
+      "evidence": [
+        {
+          "kind": "path-presence",
+          "path": ".",
+          "value": "AGENTS.md"
+        }
+      ],
+      "id": "governance.instructions",
+      "remediation": "Add a root AGENTS.md with commands, boundaries, sources of truth, and safety rules.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Repository instructions"
+    },
+    {
+      "category": "governance",
+      "description": "No recognized project intent and authority contract or explicit disposition is present.",
+      "evidence": [
+        {
+          "kind": "project-contract",
+          "path": "harness/project.yaml",
+          "value": "not available (absent)"
+        }
+      ],
+      "id": "governance.project-contract",
+      "remediation": "Add harness/project.yaml or configure a safe repository-relative contract path or explicit not-applicable reason.",
+      "severity": "medium",
+      "status": "warn",
+      "title": "Machine-readable project contract"
+    },
+    {
+      "category": "security",
+      "description": "The repository declares a CodeQL workflow as a visible code-scanning signal.",
+      "evidence": [
+        {
+          "kind": "workflow-set",
+          "path": ".github/workflows",
+          "value": ".github/workflows/codeql.yml"
+        }
+      ],
+      "id": "security.code-scanning",
+      "remediation": "Configure code scanning appropriate to the repository languages and threat model.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Code scanning"
+    },
+    {
+      "category": "security",
+      "description": "A recognized dependency-update configuration is present.",
+      "evidence": [
+        {
+          "kind": "path-presence",
+          "path": ".",
+          "value": ".github/dependabot.yml"
+        }
+      ],
+      "id": "security.dependency-updates",
+      "remediation": "Configure a reviewed dependency-update tool for every supported ecosystem.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Automated dependency updates"
+    },
+    {
+      "category": "security",
+      "description": "A vulnerability-reporting policy is discoverable.",
+      "evidence": [
+        {
+          "kind": "path-presence",
+          "path": ".",
+          "value": "none found"
+        }
+      ],
+      "id": "security.policy",
+      "remediation": "Add SECURITY.md with supported versions and a private reporting channel.",
+      "severity": "medium",
+      "status": "warn",
+      "title": "Security policy"
+    },
+    {
+      "category": "testing",
+      "description": "A machine-readable primary verification command is declared.",
+      "evidence": [
+        {
+          "kind": "configured-primary-check",
+          "path": "Makefile",
+          "value": "make check"
+        }
+      ],
+      "id": "testing.primary-check",
+      "remediation": "Declare one authoritative command and run it unchanged in local and CI boundaries.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Authoritative local and CI check"
+    },
+    {
+      "category": "testing",
+      "description": "A conventional automated test suite is present.",
+      "evidence": [
+        {
+          "kind": "path-count",
+          "path": "tests",
+          "value": "42"
+        }
+      ],
+      "id": "testing.suite",
+      "remediation": "Add deterministic tests for the project's public and failure-path behavior.",
+      "severity": "info",
+      "status": "pass",
+      "title": "Automated tests"
+    }
+  ],
+  "schema_version": "1.2",
+  "summary": {
+    "by_severity": {
+      "high": 0,
+      "info": 9,
+      "low": 1,
+      "medium": 3
+    },
+    "by_status": {
+      "fail": 0,
+      "not-applicable": 0,
+      "pass": 9,
+      "unknown": 0,
+      "warn": 4
+    },
+    "total": 13
+  },
+  "target": {
+    "branch": "DETACHED",
+    "dirty": false,
+    "name": "procurement-intelligence-lab",
+    "revision": "0f9d1a45af078ebf969f9ced11fc2e93adb542d0",
+    "state_id": "sha256:0943870d181b201f67b3d4c1c136ba2781aae202ea56446cfc91ec96dc82870a"
+  },
+  "tool": {
+    "name": "agentic-repo-auditor",
+    "version": "0.1.0"
+  }
+}

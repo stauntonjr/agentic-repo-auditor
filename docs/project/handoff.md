@@ -22,9 +22,15 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Publication state: public source is available at `stauntonjr/agentic-repo-auditor`; no tag, GitHub Release, or package-registry publication is authorized.
 - Product release state: version 0.1.0 remains unreleased.
 - First existing-repository dogfood: Issue #8 audits public S3NTINEL commit `14ba0416e06f6a9b57a8f7b02fdef1bb09a2f1cc`; canonical JSON, Markdown, and triage live under `docs/reports/`.
+- Second existing-repository dogfood: Issue #19 audits public Procurement Intelligence Lab commit
+  `0f9d1a45af078ebf969f9ced11fc2e93adb542d0` with schema-1.2 `make check` / `Makefile`
+  evidence; the deterministic read-only JSON, Markdown, and triage live under `docs/reports/`.
 - Issue #13 repairs the dogfood's false instruction-coverage warning with a deterministic,
   token-bounded vocabulary and exact matched-term evidence; it does not claim semantic prose
   understanding.
+- Issue #20 captures a second bounded instruction counterexample: concrete confidentiality,
+  authorization, token, and non-deletion guardrails are not recognized without literal
+  `safe` / `safely` / `safety` vocabulary.
 - Issue #12 adds schema-1.1 portable project-contract evidence: a safe repository-relative JSON or
   YAML object or an explicit bounded not-applicable reason. Automatic `harness/project.yaml`
   compatibility remains.
@@ -68,9 +74,9 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Recommended next loop
 
-Audit a second existing repository with the portable evidence configuration, then use dogfood
-results to decide authenticated GitHub evidence, SARIF, baselining, and the full-application
-companion boundary.
+Repair Issue #20's demonstrated instruction false warning, then use both existing-repository
+dogfood datasets to choose among authenticated GitHub evidence, SARIF, baselining, and the
+separate full-application companion already governed by Issue #11.
 
 ## Refresh protocol
 
