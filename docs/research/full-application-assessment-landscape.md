@@ -24,7 +24,7 @@ Searches covered `application architecture assessment`, `code property graph`, `
 
 | Candidate | Revision or version inspected | License or provenance | Useful evidence | Boundary and disposition |
 |---|---|---|---|---|
-| [arc42](https://arc42.org/overview/) | Template 9.0; canonical template `8dff0d9b1f9640684df8c3bbcdc2ee45f989ca0f` | Official site says free, open source, and usable commercially; individual assets retain their declared terms | A coherent report outline spanning goals, constraints, context, building blocks, runtime, deployment, decisions, quality, risks, and glossary | **Adapt** the coverage checklist, not its prose; every section must still distinguish observed, declared, derived, and unavailable evidence |
+| [arc42](https://arc42.org/overview/) | Template 9.0; canonical template `8dff0d9b1f9640684df8c3bbcdc2ee45f989ca0f` | Template and documentation are CC BY-SA 4.0: adaptations require attribution and share-alike distribution; independently authored content embedded in the template may use its author's terms | A coherent report outline spanning goals, constraints, context, building blocks, runtime, deployment, decisions, quality, risks, and glossary | **Reference** the general coverage concepts, but do not copy or adapt template text into an MIT repository. Any future use of licensed template material must retain attribution and a compatible share-alike boundary |
 | [C4 model](https://c4model.com/) | Official site inspected 2026-08-24 | Official examples are CC BY 4.0; the method is notation- and tooling-independent | Consistent system, container, component, dynamic, and deployment abstractions | **Adapt** vocabulary and view levels; a folder or package is not automatically a C4 component, so generated mappings remain hypotheses until confirmed |
 | [Structurizr](https://docs.structurizr.com/dsl) | `structurizr/structurizr@9ff16634c3b8574584262ae8545510bbb1d1b4bd` | Apache-2.0 | Text model plus views; exports to JSON, PlantUML, Mermaid, and static HTML | **Defer** as an optional exporter. Do not make a Java DSL runtime or diagram layout part of the first evidence core |
 | [ATAM](https://www.sei.cmu.edu/library/the-architecture-tradeoff-analysis-method/) | CMU/SEI-98-TR-008 | Primary SEI method/report | Stakeholder scenarios and tradeoffs among modifiability, security, performance, availability, and other qualities | **Adapt** the scenario discipline. Automated inspection cannot decide architectural fitness without the decisions and quality attributes that matter to the user |
@@ -44,10 +44,10 @@ dependency or adapter before adoption.
 
 ## Evidence-backed findings
 
-1. **There is no honest single-source full-application analyzer.** Static analyzers observe only
-   supported languages and modeled constructs. Runtime tools observe only executed paths and
-   environments. Architecture methods require stakeholder goals and scenarios. Domain semantics
-   require authoritative human or project declarations.
+1. **No evaluated candidate provides a sufficient single source for this product boundary.**
+   Static analyzers observe only supported languages and modeled constructs. Runtime tools observe
+   only executed paths and environments. Architecture methods require stakeholder goals and
+   scenarios. Domain semantics require authoritative human or project declarations.
 2. **Static structure is not architecture by itself.** C4 explicitly separates software systems,
    deployable containers, components, and code. arc42 adds goals, constraints, runtime,
    deployment, decisions, and risks. Package and call graphs can support those views but cannot
@@ -124,13 +124,27 @@ quality, and organization-wide aggregation.
 
 The products remain independently runnable and versioned.
 
-- Input is the Auditor's canonical JSON file, never scraped Markdown.
-- The companion records the input file SHA-256, Auditor tool version, report schema version, target
-  state ID, target revision, and its own import provenance. The current Auditor schema does not
-  claim to preserve the original CLI invocation.
-- The companion accepts the report only when the target repository identity and state match its own
-  assessment target. Mismatch is a deterministic input error; absence remains supported and is
-  reported as unavailable repository-readiness evidence.
+- Input is the Auditor's canonical JSON file, never scraped Markdown. The initial adapter accepts
+  only `tool.name == "agentic-repo-auditor"`, `tool.version == "0.1.0"`, and
+  `schema_version == "1.2"`, validated against the exact schema-1.2 JSON Schema. Later versions
+  require an explicit adapter update rather than optimistic compatibility.
+- The companion records the input file SHA-256, Auditor tool version, report schema version, all
+  five target fields, and its own import provenance. The current Auditor schema does not claim to
+  preserve the original CLI invocation, a remote URL, or a globally unique repository identity.
+- When an Auditor import is requested, the adapter must run the supported Auditor distribution or
+  source revision pinned by digest against the same caller-selected, resolved local repository root
+  using a temporary configuration rebuilt from the report's normalized `configuration` object.
+  This is trusted adapter execution, not target-code execution, and it must retain the Auditor's
+  read-only safeguards.
+- The adapter compares the fresh canonical JSON report with the supplied report byte-for-byte after
+  canonical serialization. It also compares `target.name`, `target.revision`, `target.branch`,
+  `target.dirty`, and `target.state_id` individually so mismatch errors identify the failed field.
+  `target.name` means only the local root directory name; it must not be described as remote
+  repository identity. `target.state_id` is verified by the pinned Auditor that owns its algorithm,
+  not by a second companion implementation.
+- Missing adapter support, a missing pinned Auditor, schema failure, report-content mismatch, or
+  target-field mismatch is a deterministic import error. Absence of an optional Auditor input
+  remains supported and is reported as unavailable repository-readiness evidence.
 - Auditor findings retain their original IDs, statuses, severities, descriptions, evidence, and
   remediation under a `repo-readiness` source namespace. The companion does not recompute or
   reinterpret their pass/fail state.
@@ -150,7 +164,9 @@ reference the original artifact and preserve its version rather than duplicate t
 
 Proceed with a separate MIT-eligible Python CLI repository only after the human owner confirms its
 name, license, profile, publication policy, first audience/decision, first dogfood target, and
-whether model-assisted synthesis belongs in v0.1. The recommended working name is
+whether model-assisted synthesis belongs in v0.1. MIT eligibility assumes original implementation
+and documentation; arc42 template material must not be copied or adapted into that MIT corpus.
+The recommended working name is
 `agentic-application-assessor`; GitHub name searches for that exact phrase,
 `application-evidence-lab`, and `full-application-assessor` returned no repositories on the search
 date.

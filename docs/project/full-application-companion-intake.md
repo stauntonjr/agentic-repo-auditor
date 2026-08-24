@@ -122,7 +122,8 @@ confidential inputs.
 Recommended proposal:
 
 - repository/name: `stauntonjr/agentic-application-assessor`;
-- license: MIT;
+- license: MIT for original implementation and documentation; do not copy or adapt CC BY-SA arc42
+  template material into the MIT corpus;
 - visibility: public source after local acceptance and secret/history scanning;
 - profile: `python-data`, with agent-system evaluation requirements recorded explicitly;
 - versioning: SemVer starting at `0.1.0` unreleased; and
