@@ -7,7 +7,7 @@
   "required": ["schema_version"],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "enum": ["1.0", "1.1"]
     },
     "disabled_checks": {
       "type": "array",
@@ -17,6 +17,51 @@
       },
       "uniqueItems": true,
       "default": []
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_contract": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path"],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.(?:json|ya?ml)$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["not_applicable_reason"],
+              "properties": {
+                "not_applicable_reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500,
+                  "pattern": "^[^\\r\\n]+$"
+                }
+              }
+            }
+          ]
+        }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"schema_version": {"const": "1.0"}},
+        "required": ["schema_version"]
+      },
+      "then": {"not": {"required": ["evidence"]}}
+    }
+  ]
 }
