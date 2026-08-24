@@ -146,6 +146,54 @@ class AuditorCliTests(unittest.TestCase):
         self.assertNotIn("Traceback", malformed.stderr)
         self.assertIn("non-empty object", malformed.stderr)
 
+    def test_configured_primary_check_is_deterministic_and_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            boundary = Path(directory)
+            target = boundary / "fixture"
+            target.mkdir()
+            initialize_repository(target)
+            (target / "harness/project.yaml").unlink()
+            source = target / "dangerous.sh"
+            source.write_text("#!/bin/sh\ntouch SHOULD_NOT_EXIST\n", encoding="utf-8")
+            source.chmod(0o755)
+            config_path = boundary / "config.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.2",
+                        "evidence": {
+                            "primary_check": {
+                                "command": "./dangerous.sh",
+                                "source": "dangerous.sh",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            before = snapshot_tree(target)
+            first = self.run_cli(
+                "audit", str(target), "--config", str(config_path), "--format", "json"
+            )
+            middle = snapshot_tree(target)
+            second = self.run_cli(
+                "audit", str(target), "--config", str(config_path), "--format", "json"
+            )
+            after = snapshot_tree(target)
+            sentinel_exists = (target / "SHOULD_NOT_EXIST").exists()
+
+        self.assertEqual(0, first.returncode, first.stderr)
+        self.assertEqual(first.stdout, second.stdout)
+        self.assertEqual(before, middle)
+        self.assertEqual(before, after)
+        self.assertFalse(sentinel_exists)
+        payload = json.loads(first.stdout)
+        finding = next(
+            item for item in payload["findings"] if item["id"] == "testing.primary-check"
+        )
+        self.assertEqual("pass", finding["status"])
+        self.assertEqual("dangerous.sh", finding["evidence"][0]["path"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,7 +17,8 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Project status: active; greenfield intake accepted 2026-08-22.
 - Completed product loop: `20260822T164511Z-33525376`, revision 4 attempt 1 for LOCAL-1, reported at content-equivalent rewritten commit `7de7119` after independent AC1-AC5 approval.
 - Architecture: ADR-0006 accepted on 2026-08-22; ADR-0007 portable evidence declarations accepted
-  by the human owner on 2026-08-24.
+  by the human owner on 2026-08-24; ADR-0008 portable primary-check declarations accepted on
+  2026-08-24.
 - Publication state: public source is available at `stauntonjr/agentic-repo-auditor`; no tag, GitHub Release, or package-registry publication is authorized.
 - Product release state: version 0.1.0 remains unreleased.
 - First existing-repository dogfood: Issue #8 audits public S3NTINEL commit `14ba0416e06f6a9b57a8f7b02fdef1bb09a2f1cc`; canonical JSON, Markdown, and triage live under `docs/reports/`.
@@ -27,6 +28,8 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Issue #12 adds schema-1.1 portable project-contract evidence: a safe repository-relative JSON or
   YAML object or an explicit bounded not-applicable reason. Automatic `harness/project.yaml`
   compatibility remains.
+- Issue #14 adds schema-1.2 portable primary-check evidence: an exact non-executed command with a
+  safe repository-relative provenance source, or an explicit bounded not-applicable reason.
 
 ## Implemented product slice
 
@@ -58,7 +61,6 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Open decisions
 
-- Which portable machine-readable primary-check declarations should be recognized beyond the template contract (Issue #14).
 - Whether GitHub Project creation should copy a canonical user Project or render fields from desired state.
 - When to add an authenticated, read-only GitHub evidence adapter.
 - Whether downstream consumers require SARIF export or cross-run baselining.
@@ -66,8 +68,9 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Recommended next loop
 
-Implement the approved portable primary-check declaration in Issue #14 on ADR-0007's evidence
-configuration foundation, then audit a second existing repository.
+Audit a second existing repository with the portable evidence configuration, then use dogfood
+results to decide authenticated GitHub evidence, SARIF, baselining, and the full-application
+companion boundary.
 
 ## Refresh protocol
 

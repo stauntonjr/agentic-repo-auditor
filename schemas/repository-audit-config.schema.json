@@ -7,7 +7,7 @@
   "required": ["schema_version"],
   "properties": {
     "schema_version": {
-      "enum": ["1.0", "1.1"]
+      "enum": ["1.0", "1.1", "1.2"]
     },
     "disabled_checks": {
       "type": "array",
@@ -33,7 +33,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 512,
-                  "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.(?:json|ya?ml)$"
+                  "pattern": "^(?!/)(?!\\s)(?!.*\\s$)(?!.*[\\u0000-\\u001F])(?!.*(?:^|/)\\.\\.(?:/|$))(?!\\.git(?:/|$))(?!.*\\/\\.git(?:/|$))(?!.*\\\\).+\\.(?:json|ya?ml)$"
                 }
               }
             },
@@ -46,7 +46,43 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 500,
-                  "pattern": "^[^\\r\\n]+$"
+                  "pattern": "^(?!\\s)(?!.*\\s$)[^\\r\\n]+$"
+                }
+              }
+            }
+          ]
+        },
+        "primary_check": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["command", "source"],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500,
+                  "pattern": "^(?!\\s)(?!.*\\s$)[^\\r\\n]+$"
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "^(?!/)(?!\\s)(?!.*\\s$)(?!.*[\\u0000-\\u001F])(?!.*(?:^|/)\\.\\.(?:/|$))(?!\\.git(?:/|$))(?!.*\\/\\.git(?:/|$))(?!.*\\\\).+$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["not_applicable_reason"],
+              "properties": {
+                "not_applicable_reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500,
+                  "pattern": "^(?!\\s)(?!.*\\s$)[^\\r\\n]+$"
                 }
               }
             }
@@ -62,6 +98,17 @@
         "required": ["schema_version"]
       },
       "then": {"not": {"required": ["evidence"]}}
+    },
+    {
+      "if": {
+        "properties": {"schema_version": {"const": "1.1"}},
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "evidence": {"not": {"required": ["primary_check"]}}
+        }
+      }
     }
   ]
 }

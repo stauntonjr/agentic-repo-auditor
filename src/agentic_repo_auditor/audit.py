@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import stat
 import subprocess
 from dataclasses import dataclass
@@ -21,7 +22,14 @@ from yaml.nodes import (  # pyright: ignore[reportMissingModuleSource]
 )
 
 from . import __version__
-from .model import Evidence, Finding, ProjectContractDeclaration, Report, TargetState
+from .model import (
+    Evidence,
+    Finding,
+    PrimaryCheckDeclaration,
+    ProjectContractDeclaration,
+    Report,
+    TargetState,
+)
 
 
 class AuditError(RuntimeError):
@@ -34,6 +42,7 @@ class AuditConfig:
 
     disabled_checks: frozenset[str] = frozenset()
     project_contract: ProjectContractDeclaration | None = None
+    primary_check: PrimaryCheckDeclaration | None = None
 
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -51,6 +60,7 @@ INSTRUCTION_SIGNAL_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("safety", ("safe", "safely", "safety")),
     ("verification", ("verify", "verified", "verification", "validate", "validation")),
 )
+PRIMARY_CHECK_NOOPS = frozenset({":", "true", "echo", "printf", "pwd"})
 
 
 @dataclass(frozen=True)
@@ -911,24 +921,82 @@ def _security_code_scanning(root: Path, _: str, __: AuditConfig) -> Finding:
     )
 
 
-def _testing_primary_check(root: Path, _: str, __: AuditConfig) -> Finding:
-    command = ""
-    content = _read_repository_text(root, "harness/project.yaml")
-    if content is not None:
-        try:
-            payload = json.loads(content)
-            command = payload["engineering"]["command_contract"]["primary_check"]
-        except (KeyError, TypeError, json.JSONDecodeError):
-            command = ""
+def _primary_check_finding(
+    status: str,
+    severity: str,
+    evidence: list[Evidence],
+    description: str = "A machine-readable primary verification command is declared.",
+) -> Finding:
     return _finding(
         "testing.primary-check",
         "testing",
-        "pass" if command else "warn",
-        "info" if command else "medium",
+        status,
+        severity,
         "Authoritative local and CI check",
-        "A machine-readable primary verification command is declared.",
-        [Evidence("project-contract", "harness/project.yaml", command or "not declared")],
+        description,
+        evidence,
         "Declare one authoritative command and run it unchanged in local and CI boundaries.",
+    )
+
+
+def _testing_primary_check(root: Path, _: str, config: AuditConfig) -> Finding:
+    declaration = config.primary_check
+    if declaration is not None:
+        if declaration.not_applicable_reason is not None:
+            return _primary_check_finding(
+                "not-applicable",
+                "info",
+                [
+                    Evidence(
+                        "configured-disposition",
+                        ".",
+                        f"not-applicable: {declaration.not_applicable_reason}",
+                    )
+                ],
+                "An authoritative aggregate verification command is explicitly not applicable.",
+            )
+        assert declaration.command is not None and declaration.source is not None
+        kind = _safe_kind(root, declaration.source)
+        if kind != "file":
+            raise AuditError(
+                f"configured primary-check source must be a regular file: "
+                f"{declaration.source} ({kind})"
+            )
+        source_content = _read_repository_text(root, declaration.source)
+        assert source_content is not None
+        if not source_content.strip():
+            raise AuditError(f"configured primary-check source is empty: {declaration.source}")
+        return _primary_check_finding(
+            "pass",
+            "info",
+            [Evidence("configured-primary-check", declaration.source, declaration.command)],
+        )
+
+    relative = "harness/project.yaml"
+    kind = _safe_kind(root, relative)
+    if kind != "file":
+        return _primary_check_finding(
+            "warn",
+            "medium",
+            [Evidence("primary-check", relative, f"not available ({kind})")],
+        )
+    content = _read_repository_text(root, relative)
+    assert content is not None
+    try:
+        payload = _parse_project_contract(content, relative)
+        command = payload["engineering"]["command_contract"]["primary_check"]
+        command = _validated_primary_check_command(command)
+    except (AuditError, KeyError, TypeError) as exc:
+        return _primary_check_finding(
+            "warn",
+            "medium",
+            [Evidence("primary-check-error", relative, str(exc) or "not declared")],
+            "The conventional harness primary-check declaration is absent or malformed.",
+        )
+    return _primary_check_finding(
+        "pass",
+        "info",
+        [Evidence("automatic-primary-check", relative, command)],
     )
 
 
@@ -1080,6 +1148,89 @@ CHECKS: tuple[tuple[str, Callable[[Path, str, AuditConfig], Finding]], ...] = (
 CHECK_IDS = frozenset(item[0] for item in CHECKS)
 
 
+def _validated_configured_path(
+    value: Any,
+    *,
+    label: str,
+    allowed_suffixes: frozenset[str] | None = None,
+) -> str:
+    if not isinstance(value, str) or value != value.strip():
+        raise AuditError(f"{label} must be a trimmed string")
+    portable = PurePosixPath(value)
+    if (
+        not value
+        or len(value) > 512
+        or portable.is_absolute()
+        or portable.as_posix() != value
+        or value == "."
+        or any(part in {"", ".", ".."} for part in portable.parts)
+        or ".git" in portable.parts
+        or "\\" in value
+        or any(ord(character) < 32 for character in value)
+        or (allowed_suffixes is not None and portable.suffix.lower() not in allowed_suffixes)
+    ):
+        suffix = " JSON or YAML" if allowed_suffixes is not None else ""
+        raise AuditError(f"{label} must be a normalized repository-relative{suffix} path")
+    return value
+
+
+def _validated_disposition_reason(value: Any, *, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or value != value.strip()
+        or not value
+        or len(value) > 500
+        or any(ord(character) < 32 for character in value)
+    ):
+        raise AuditError(f"{label} must be a trimmed single-line string of 1-500 characters")
+    return value
+
+
+def _validated_primary_check_command(value: Any) -> str:
+    if (
+        not isinstance(value, str)
+        or value != value.strip()
+        or not value
+        or len(value) > 500
+        or any(ord(character) < 32 for character in value)
+    ):
+        raise AuditError(
+            "evidence.primary_check.command must be a trimmed single-line string of 1-500 characters"
+        )
+    if value.startswith("not-applicable:"):
+        raise AuditError(
+            "evidence.primary_check.command must use not_applicable_reason for dispositions"
+        )
+    try:
+        arguments = shlex.split(value, posix=True)
+    except ValueError as exc:
+        raise AuditError("evidence.primary_check.command must have balanced shell quoting") from exc
+    if not arguments:
+        raise AuditError("evidence.primary_check.command must not be empty")
+    executable = PurePosixPath(arguments[0]).name
+    shell_noop = (
+        executable in {"sh", "bash", "dash", "zsh"}
+        and len(arguments) == 3
+        and arguments[1] in {"-c", "-lc"}
+        and arguments[2].strip() in {":", "true", "exit 0"}
+    )
+    python_noop = (
+        executable in {"python", "python3"}
+        and len(arguments) == 3
+        and arguments[1] == "-c"
+        and arguments[2].strip() in {"pass", "exit(0)", "raise SystemExit(0)"}
+    )
+    if (
+        executable in PRIMARY_CHECK_NOOPS
+        or (executable == "exit" and arguments[1:] == ["0"])
+        or (executable == "sleep" and arguments[1:] in (["0"], ["0s"]))
+        or shell_noop
+        or python_noop
+    ):
+        raise AuditError("evidence.primary_check.command must not be a successful no-op")
+    return value
+
+
 def load_config(path: Path | None) -> AuditConfig:
     if path is None:
         return AuditConfig()
@@ -1093,8 +1244,8 @@ def load_config(path: Path | None) -> AuditConfig:
     if unknown_keys:
         raise AuditError(f"unknown configuration keys: {', '.join(unknown_keys)}")
     schema_version = payload.get("schema_version")
-    if schema_version not in {"1.0", "1.1"}:
-        raise AuditError("configuration schema_version must be 1.0 or 1.1")
+    if schema_version not in {"1.0", "1.1", "1.2"}:
+        raise AuditError("configuration schema_version must be 1.0, 1.1, or 1.2")
     disabled = payload.get("disabled_checks", [])
     if not isinstance(disabled, list) or any(not isinstance(item, str) for item in disabled):
         raise AuditError("disabled_checks must be an array of strings")
@@ -1105,10 +1256,12 @@ def load_config(path: Path | None) -> AuditConfig:
         raise AuditError(f"unknown disabled checks: {', '.join(unknown_checks)}")
     evidence = payload.get("evidence", {})
     if schema_version == "1.0" and "evidence" in payload:
-        raise AuditError("configuration evidence requires schema_version 1.1")
+        raise AuditError("configuration evidence requires schema_version 1.1 or 1.2")
     if not isinstance(evidence, dict):
         raise AuditError("evidence must be an object")
-    unknown_evidence = sorted(set(evidence) - {"project_contract"})
+    if schema_version == "1.1" and "primary_check" in evidence:
+        raise AuditError("evidence.primary_check requires schema_version 1.2")
+    unknown_evidence = sorted(set(evidence) - {"project_contract", "primary_check"})
     if unknown_evidence:
         raise AuditError(f"unknown evidence declarations: {', '.join(unknown_evidence)}")
 
@@ -1127,38 +1280,46 @@ def load_config(path: Path | None) -> AuditConfig:
                 "evidence.project_contract requires exactly one of path or not_applicable_reason"
             )
         if "path" in value:
-            relative = value["path"]
-            if not isinstance(relative, str) or relative != relative.strip():
-                raise AuditError("evidence.project_contract.path must be a trimmed string")
-            portable = PurePosixPath(relative)
-            if (
-                not relative
-                or len(relative) > 512
-                or portable.is_absolute()
-                or portable.as_posix() != relative
-                or relative == "."
-                or any(part in {"", ".", ".."} for part in portable.parts)
-                or "\\" in relative
-                or portable.suffix.lower() not in {".json", ".yaml", ".yml"}
-            ):
-                raise AuditError(
-                    "evidence.project_contract.path must be a normalized repository-relative JSON or YAML path"
-                )
+            relative = _validated_configured_path(
+                value["path"],
+                label="evidence.project_contract.path",
+                allowed_suffixes=frozenset({".json", ".yaml", ".yml"}),
+            )
             declaration = ProjectContractDeclaration(path=relative)
         else:
-            reason = value["not_applicable_reason"]
-            if (
-                not isinstance(reason, str)
-                or reason != reason.strip()
-                or not reason
-                or len(reason) > 500
-                or any(ord(character) < 32 for character in reason)
-            ):
-                raise AuditError(
-                    "evidence.project_contract.not_applicable_reason must be a trimmed single-line string of 1-500 characters"
-                )
+            reason = _validated_disposition_reason(
+                value["not_applicable_reason"],
+                label="evidence.project_contract.not_applicable_reason",
+            )
             declaration = ProjectContractDeclaration(not_applicable_reason=reason)
-    return AuditConfig(frozenset(disabled), declaration)
+
+    primary_check: PrimaryCheckDeclaration | None = None
+    if "primary_check" in evidence:
+        value = evidence["primary_check"]
+        if not isinstance(value, dict):
+            raise AuditError("evidence.primary_check must be an object")
+        unknown_declaration = sorted(set(value) - {"command", "source", "not_applicable_reason"})
+        if unknown_declaration:
+            raise AuditError(
+                "unknown primary-check declaration keys: " + ", ".join(unknown_declaration)
+            )
+        if set(value) not in ({"command", "source"}, {"not_applicable_reason"}):
+            raise AuditError(
+                "evidence.primary_check requires command and source, or not_applicable_reason"
+            )
+        if "command" in value:
+            command = _validated_primary_check_command(value["command"])
+            source = _validated_configured_path(
+                value["source"], label="evidence.primary_check.source"
+            )
+            primary_check = PrimaryCheckDeclaration(command=command, source=source)
+        else:
+            reason = _validated_disposition_reason(
+                value["not_applicable_reason"],
+                label="evidence.primary_check.not_applicable_reason",
+            )
+            primary_check = PrimaryCheckDeclaration(not_applicable_reason=reason)
+    return AuditConfig(frozenset(disabled), declaration, primary_check)
 
 
 def audit_repository(target: Path, config: AuditConfig | None = None) -> Report:
@@ -1190,4 +1351,5 @@ def audit_repository(target: Path, config: AuditConfig | None = None) -> Report:
         findings=findings,
         disabled_checks=tuple(active_config.disabled_checks),
         project_contract=active_config.project_contract,
+        primary_check=active_config.primary_check,
     )
