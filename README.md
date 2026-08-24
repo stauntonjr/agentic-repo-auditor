@@ -95,9 +95,36 @@ configured evidence fails closed with exit status 2. Explicit dispositions appea
 `not-applicable` findings with the exact reason; they do not remove the finding.
 
 Run with `--config path/to/config.json`. Schema 1.0 remains accepted without evidence declarations.
-Unknown keys, evidence declarations, and check IDs fail closed. The versioned schema is
+Unknown keys, unsupported evidence declarations, and unknown check IDs fail closed. The versioned schema is
 [repository-audit-config.schema.json](schemas/repository-audit-config.schema.json); the decision
 boundary is recorded in [ADR-0007](docs/adr/0007-portable-evidence-declarations.md).
+
+Schema 1.2 adds a portable authoritative primary-check declaration with repository provenance:
+
+```json
+{
+  "schema_version": "1.2",
+  "evidence": {
+    "primary_check": {
+      "command": "make check",
+      "source": "Makefile"
+    }
+  }
+}
+```
+
+`source` must be a normalized repository-relative path to a non-empty, bounded UTF-8 regular file;
+symlink components, `.git`, and path traversal are rejected. The source is maintainer-declared
+provenance, not a claim that the auditor semantically interprets the file. The auditor records but
+never executes `command`. Empty, multiline, unbalanced, disposition-shaped, and obvious successful
+no-op commands fail closed. A primary check may instead use `not_applicable_reason`, with the same
+bounded disposition rules as project-contract evidence.
+
+Without a configured declaration, the auditor retains automatic
+`harness/project.yaml` compatibility. It does not infer authority from README prose, CI presence,
+Makefile targets, package scripts, or other filenames. The exact command and source, exact
+disposition reason, or automatic-detection state appears in both report formats. See
+[ADR-0008](docs/adr/0008-portable-primary-check-declarations.md).
 
 ## Report contract
 
@@ -109,7 +136,7 @@ JSON is the canonical machine representation. Markdown is generated deterministi
 - fixed-order summary counts; and
 - findings sorted by stable ID with sorted evidence.
 
-Report schema 1.1 includes the normalized configured-evidence object. The schema is
+Report schema 1.2 includes normalized project-contract and primary-check evidence. The schema is
 [repository-audit-report.schema.json](schemas/repository-audit-report.schema.json). Wall-clock
 timestamps and absolute target paths are deliberately omitted so repeated audits of the same state
 are byte-identical and disclose less local information.

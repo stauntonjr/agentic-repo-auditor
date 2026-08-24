@@ -792,6 +792,8 @@ class AuditorTests(unittest.TestCase):
                 {"path": "/absolute.json"},
                 {"path": "contract.txt"},
                 {"path": " contract.json"},
+                {"path": ".git/project.json"},
+                {"path": "contract\tname.json"},
                 {"not_applicable_reason": ""},
                 {"not_applicable_reason": "line one\nline two"},
                 {"path": "contract.json", "not_applicable_reason": "conflict"},
@@ -822,6 +824,230 @@ class AuditorTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(AuditError, "requires schema_version 1.1"):
                 load_config(legacy_with_evidence)
+
+    def test_primary_check_supports_configured_command_source_and_disposition(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            boundary = Path(directory)
+            root = boundary / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            (root / "harness/project.yaml").unlink()
+            (root / "Makefile").write_text("check:\n\tpytest -q\n", encoding="utf-8")
+            config_file = boundary / "config.json"
+            config_file.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.2",
+                        "evidence": {
+                            "primary_check": {
+                                "command": "make check",
+                                "source": "Makefile",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = load_config(config_file)
+            first = audit_repository(root, config)
+            second = audit_repository(root, config)
+
+            disposition_file = boundary / "disposition.json"
+            disposition_file.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.2",
+                        "evidence": {
+                            "primary_check": {
+                                "not_applicable_reason": (
+                                    "This repository stores one static fixture and has no executable checks."
+                                )
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            disposition_report = audit_repository(root, load_config(disposition_file))
+
+        finding = next(
+            item for item in first.findings if item.finding_id == "testing.primary-check"
+        )
+        self.assertEqual("pass", finding.status)
+        self.assertEqual(
+            [("configured-primary-check", "Makefile", "make check")],
+            [(item.kind, item.path, item.value) for item in finding.evidence],
+        )
+        self.assertEqual(render_json(first), render_json(second))
+        self.assertEqual(
+            {"command": "make check", "source": "Makefile"},
+            first.as_dict()["configuration"]["evidence"]["primary_check"],
+        )
+        self.assertIn(
+            "Primary-check evidence: `make check` from `Makefile`", render_markdown(first)
+        )
+        disposition = next(
+            item
+            for item in disposition_report.findings
+            if item.finding_id == "testing.primary-check"
+        )
+        self.assertEqual("not-applicable", disposition.status)
+        self.assertIn("static fixture", disposition.evidence[0].value)
+
+    def test_primary_check_preserves_harness_compatibility_without_prose_inference(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            automatic_report = audit_repository(root)
+            contract = root / "harness/project.yaml"
+            contract.unlink()
+            (root / "README.md").write_text(
+                "# Fixture\nRun `make check` as the authoritative test.\n", encoding="utf-8"
+            )
+            prose_report = audit_repository(root)
+            contract.write_text(
+                json.dumps({"engineering": {"command_contract": {"primary_check": "true"}}}),
+                encoding="utf-8",
+            )
+            noop_report = audit_repository(root)
+
+        automatic = next(
+            item for item in automatic_report.findings if item.finding_id == "testing.primary-check"
+        )
+        prose = next(
+            item for item in prose_report.findings if item.finding_id == "testing.primary-check"
+        )
+        noop = next(
+            item for item in noop_report.findings if item.finding_id == "testing.primary-check"
+        )
+        self.assertEqual(
+            ("pass", "automatic-primary-check"), (automatic.status, automatic.evidence[0].kind)
+        )
+        self.assertEqual("warn", prose.status)
+        self.assertEqual(("warn", "primary-check-error"), (noop.status, noop.evidence[0].kind))
+        self.assertIn("successful no-op", noop.evidence[0].value)
+
+    def test_configured_primary_check_rejects_invalid_commands_and_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            boundary = Path(directory)
+            root = boundary / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            (root / "empty-source").write_text("", encoding="utf-8")
+            (root / "source-directory").mkdir()
+            outside = boundary / "outside"
+            outside.write_text("external source\n", encoding="utf-8")
+            os.symlink(outside, root / "linked-source")
+            outside_directory = boundary / "outside-directory"
+            outside_directory.mkdir()
+            (outside_directory / "source").write_text("external source\n", encoding="utf-8")
+            os.symlink(outside_directory, root / "linked-directory")
+
+            for command in (
+                "",
+                " true",
+                "true",
+                "/bin/true",
+                "exit 0",
+                "echo passed",
+                "sh -c true",
+                "python3 -c pass",
+                "sleep 0",
+                "not-applicable: no tests",
+                "pytest\nruff check .",
+                "pytest\t-q",
+                "pytest '",
+            ):
+                with self.subTest(command=command):
+                    config_file = boundary / "invalid-command.json"
+                    config_file.write_text(
+                        json.dumps(
+                            {
+                                "schema_version": "1.2",
+                                "evidence": {
+                                    "primary_check": {
+                                        "command": command,
+                                        "source": "README.md",
+                                    }
+                                },
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaises(AuditError):
+                        load_config(config_file)
+
+            for source, expected in (
+                ("missing-source", "absent"),
+                ("empty-source", "empty"),
+                ("source-directory", "directory"),
+                ("linked-source", "symlink"),
+                ("linked-directory/source", "symlink"),
+            ):
+                with self.subTest(source=source):
+                    config_file = boundary / f"{source.replace('/', '-')}.json"
+                    config_file.write_text(
+                        json.dumps(
+                            {
+                                "schema_version": "1.2",
+                                "evidence": {
+                                    "primary_check": {
+                                        "command": "make check",
+                                        "source": source,
+                                    }
+                                },
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(AuditError, expected):
+                        audit_repository(root, load_config(config_file))
+
+            for source in (
+                "../outside",
+                "/outside",
+                "./README.md",
+                " linked-source",
+                ".git/config",
+                "source\tname",
+            ):
+                with self.subTest(source=source):
+                    config_file = boundary / "escaping-source.json"
+                    config_file.write_text(
+                        json.dumps(
+                            {
+                                "schema_version": "1.2",
+                                "evidence": {
+                                    "primary_check": {
+                                        "command": "make check",
+                                        "source": source,
+                                    }
+                                },
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaises(AuditError):
+                        load_config(config_file)
+
+            legacy = boundary / "schema-1.1-primary-check.json"
+            legacy.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.1",
+                        "evidence": {
+                            "primary_check": {
+                                "command": "make check",
+                                "source": "README.md",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(AuditError, "requires schema_version 1.2"):
+                load_config(legacy)
 
     def test_config_disables_known_check_and_rejects_unknown_input(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

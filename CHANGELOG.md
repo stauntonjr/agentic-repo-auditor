@@ -12,6 +12,8 @@ All notable product changes are recorded here. Product and harness versions are 
 - Clean-install package and CLI verification.
 - Portable project-contract evidence through a safe repository-relative JSON or YAML path, or an
   explicit bounded not-applicable disposition.
+- Portable primary-check evidence through an exact command and safe repository-relative provenance
+  source, or an explicit bounded not-applicable disposition.
 
 ### Changed
 
@@ -27,6 +29,8 @@ All notable product changes are recorded here. Product and harness versions are 
   that recognizes equivalent authority, testing, safety, and verification terms.
 - Advanced configuration and report schemas to 1.1 for normalized, deterministic evidence
   declarations while preserving schema 1.0 inputs without declarations.
+- Advanced configuration and report schemas to 1.2 for primary-check declarations while preserving
+  schema 1.0 and 1.1 inputs within their original capabilities.
 
 ## Harness baseline [0.4.0] - 2026-08-22
 

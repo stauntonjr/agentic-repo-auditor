@@ -58,12 +58,20 @@ def render_markdown(report: Report) -> str:
         project_contract_text = f"configured path `{project_contract['path']}`"
     else:
         project_contract_text = "not applicable: " + project_contract["not_applicable_reason"]
+    primary_check = payload["configuration"]["evidence"]["primary_check"]
+    if primary_check is None:
+        primary_check_text = "automatic detection"
+    elif "command" in primary_check:
+        primary_check_text = f"`{primary_check['command']}` from `{primary_check['source']}`"
+    else:
+        primary_check_text = "not applicable: " + primary_check["not_applicable_reason"]
     lines.extend(
         [
             "## Configuration",
             "",
             f"Disabled checks: {', '.join(f'`{item}`' for item in disabled) or 'none'}.",
             f"Project-contract evidence: {project_contract_text}.",
+            f"Primary-check evidence: {primary_check_text}.",
             "",
         ]
     )

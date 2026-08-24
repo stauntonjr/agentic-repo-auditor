@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 STATUSES = ("pass", "warn", "fail", "not-applicable", "unknown")
 SEVERITIES = ("info", "low", "medium", "high")
 CATEGORIES = ("governance", "git", "ci", "security", "testing", "agent-readiness")
@@ -99,6 +99,29 @@ class ProjectContractDeclaration:
 
 
 @dataclass(frozen=True)
+class PrimaryCheckDeclaration:
+    """Normalized configured evidence for the primary-check finding."""
+
+    command: str | None = None
+    source: str | None = None
+    not_applicable_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        command_declaration = self.command is not None and self.source is not None
+        disposition = self.not_applicable_reason is not None
+        if command_declaration == disposition:
+            raise ValueError("primary check declaration requires one complete disposition")
+        if (self.command is None) != (self.source is None):
+            raise ValueError("primary check command and source must be declared together")
+
+    def as_dict(self) -> dict[str, str]:
+        if self.command is not None and self.source is not None:
+            return {"command": self.command, "source": self.source}
+        assert self.not_applicable_reason is not None
+        return {"not_applicable_reason": self.not_applicable_reason}
+
+
+@dataclass(frozen=True)
 class Report:
     """Complete deterministic audit report."""
 
@@ -108,6 +131,7 @@ class Report:
     findings: tuple[Finding, ...]
     disabled_checks: tuple[str, ...] = ()
     project_contract: ProjectContractDeclaration | None = None
+    primary_check: PrimaryCheckDeclaration | None = None
 
     def as_dict(self) -> dict[str, Any]:
         ordered = tuple(sorted(self.findings, key=lambda item: item.finding_id))
@@ -126,7 +150,10 @@ class Report:
                         self.project_contract.as_dict()
                         if self.project_contract is not None
                         else None
-                    )
+                    ),
+                    "primary_check": (
+                        self.primary_check.as_dict() if self.primary_check is not None else None
+                    ),
                 },
             },
             "summary": {

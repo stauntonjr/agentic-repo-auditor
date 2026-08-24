@@ -14,7 +14,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.1"
+      "const": "1.2"
     },
     "tool": {
       "type": "object",
@@ -50,7 +50,7 @@
         "evidence": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["project_contract"],
+          "required": ["project_contract", "primary_check"],
           "properties": {
             "project_contract": {
               "oneOf": [
@@ -60,6 +60,28 @@
                   "additionalProperties": false,
                   "required": ["path"],
                   "properties": {"path": {"type": "string", "minLength": 1}}
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["not_applicable_reason"],
+                  "properties": {
+                    "not_applicable_reason": {"type": "string", "minLength": 1}
+                  }
+                }
+              ]
+            },
+            "primary_check": {
+              "oneOf": [
+                {"type": "null"},
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["command", "source"],
+                  "properties": {
+                    "command": {"type": "string", "minLength": 1},
+                    "source": {"type": "string", "minLength": 1}
+                  }
                 },
                 {
                   "type": "object",
