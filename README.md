@@ -23,12 +23,18 @@ testing, safety, and verification. Equivalent terms such as `authoritative` may 
 the report records the exact matched term. This does not prove that the instructions are correct,
 complete, or followed.
 
-The recognized lowercase word tokens are fixed in four groups:
+The recognized lowercase word tokens and bounded structures are fixed in four groups:
 
 - source or authority: `source`, `sources`, `authority`, `authoritative`, `precedence`;
 - testing: `test`, `tests`, `testing`;
-- safety: `safe`, `safely`, `safety`; and
+- safety: `safe`, `safely`, `safety`, or the prohibition token `never` followed within the next
+  five tokens of the same punctuation-bounded clause by `confidential` or `proprietary` and then
+  `data` in that same window; and
 - verification: `verify`, `verified`, `verification`, `validate`, `validation`.
+
+For the bounded confidentiality structure, evidence records the exact matched tokens, such as
+`safety:never+confidential+data`. A broad `never`, `security`, or `authority` token does not satisfy
+the safety signal by itself.
 
 ## Install and run
 

@@ -28,9 +28,9 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 - Issue #13 repairs the dogfood's false instruction-coverage warning with a deterministic,
   token-bounded vocabulary and exact matched-term evidence; it does not claim semantic prose
   understanding.
-- Issue #20 captures a second bounded instruction counterexample: concrete confidentiality,
-  authorization, token, and non-deletion guardrails are not recognized without literal
-  `safe` / `safely` / `safety` vocabulary.
+- Issue #20 repairs the second bounded instruction counterexample by recognizing an explicit
+  `never` plus confidential/proprietary `data` prohibition. It preserves negative fixtures for
+  broad `never`, `security`, and `authority` prose and does not claim semantic understanding.
 - Issue #12 adds schema-1.1 portable project-contract evidence: a safe repository-relative JSON or
   YAML object or an explicit bounded not-applicable reason. Automatic `harness/project.yaml`
   compatibility remains.
@@ -74,9 +74,8 @@ This is a concise orientation index for a fresh human or agent. It is not a tran
 
 ## Recommended next loop
 
-Repair Issue #20's demonstrated instruction false warning, then use both existing-repository
-dogfood datasets to choose among authenticated GitHub evidence, SARIF, baselining, and the
-separate full-application companion already governed by Issue #11.
+Use both existing-repository dogfood datasets to choose among authenticated GitHub evidence,
+SARIF, baselining, and the separate full-application companion already governed by Issue #11.
 
 ## Refresh protocol
 

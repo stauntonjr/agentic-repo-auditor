@@ -538,6 +538,98 @@ class AuditorTests(unittest.TestCase):
             finding.evidence[0].value,
         )
 
+    def test_instruction_coverage_recognizes_confidential_data_prohibition(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            (root / "AGENTS.md").write_text(
+                "Treat current code and contracts as authoritative.\n"
+                "Run tests and validate results.\n"
+                "Never add confidential or proprietary data.\n",
+                encoding="utf-8",
+            )
+            report = audit_repository(root)
+
+        finding = next(
+            item for item in report.findings if item.finding_id == "agent-readiness.instructions"
+        )
+        self.assertEqual("pass", finding.status)
+        self.assertEqual(
+            "present=['source', 'test', 'safety', 'verification']; missing=[]; "
+            "matches=['source:authoritative', 'test:tests', "
+            "'safety:never+confidential+data', 'verification:validate']",
+            finding.evidence[0].value,
+        )
+
+    def test_instruction_coverage_recognizes_proprietary_data_prohibition(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            initialize_repository(root)
+            (root / "AGENTS.md").write_text(
+                "Treat current code and contracts as authoritative.\n"
+                "Run tests and validate results.\n"
+                "Never add proprietary data.\n",
+                encoding="utf-8",
+            )
+            report = audit_repository(root)
+
+        finding = next(
+            item for item in report.findings if item.finding_id == "agent-readiness.instructions"
+        )
+        self.assertEqual("pass", finding.status)
+        self.assertIn("safety:never+proprietary+data", finding.evidence[0].value)
+
+    def test_instruction_coverage_enforces_five_following_token_bound(self) -> None:
+        cases = (
+            ("Never one two three confidential data.\n", "pass"),
+            ("Never one two three four confidential data.\n", "warn"),
+        )
+        for guardrail, expected_status in cases:
+            with self.subTest(guardrail=guardrail), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / "fixture"
+                root.mkdir()
+                initialize_repository(root)
+                (root / "AGENTS.md").write_text(
+                    "Treat current code as authoritative. Run tests and verify results.\n"
+                    + guardrail,
+                    encoding="utf-8",
+                )
+                report = audit_repository(root)
+
+            finding = next(
+                item
+                for item in report.findings
+                if item.finding_id == "agent-readiness.instructions"
+            )
+            self.assertEqual(expected_status, finding.status)
+
+    def test_instruction_coverage_does_not_treat_broad_words_as_safety(self) -> None:
+        cases = (
+            "Authority is documented. Run tests and verify results. Never improvise.\n",
+            "Security ownership is authoritative. Run tests and verify results.\n",
+            "Authority is limited. Run tests and verify results.\n",
+            "Never alter test data. Follow authority and verify results.\n",
+            "Never improvise. Confidential data is catalogued. Run tests and verify authority.\n",
+        )
+        for prose in cases:
+            with self.subTest(prose=prose), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / "fixture"
+                root.mkdir()
+                initialize_repository(root)
+                (root / "AGENTS.md").write_text(prose, encoding="utf-8")
+                report = audit_repository(root)
+
+            finding = next(
+                item
+                for item in report.findings
+                if item.finding_id == "agent-readiness.instructions"
+            )
+            self.assertEqual("warn", finding.status)
+            self.assertIn("missing=['safety']", finding.evidence[0].value)
+            self.assertNotIn("safety:", finding.evidence[0].value)
+
     def test_instruction_coverage_keeps_incomplete_prose_warning(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "fixture"
