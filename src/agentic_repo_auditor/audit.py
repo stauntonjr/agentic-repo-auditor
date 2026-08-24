@@ -54,12 +54,15 @@ MAX_YAML_NODES = 20_000
 MAX_YAML_DEPTH = 100
 FILTER_KEY = re.compile(r"^filter\.(.+)\.(?:clean|smudge|process|required)$", re.IGNORECASE)
 INSTRUCTION_WORD = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+INSTRUCTION_CLAUSE_BOUNDARY = re.compile(r"[.!?;\n]+")
 INSTRUCTION_SIGNAL_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("source", ("source", "sources", "authority", "authoritative", "precedence")),
     ("test", ("test", "tests", "testing")),
     ("safety", ("safe", "safely", "safety")),
     ("verification", ("verify", "verified", "verification", "validate", "validation")),
 )
+INSTRUCTION_CONFIDENTIAL_DATA_QUALIFIERS = frozenset({"confidential", "proprietary"})
+INSTRUCTION_GUARDRAIL_MAX_FOLLOWING_TOKENS = 5
 PRIMARY_CHECK_NOOPS = frozenset({":", "true", "echo", "printf", "pwd"})
 
 
@@ -1029,11 +1032,47 @@ def _testing_suite(root: Path, _: str, __: AuditConfig) -> Finding:
     )
 
 
+def _instruction_safety_match(content: str, words: frozenset[str]) -> str | None:
+    direct_match = next(
+        (
+            term
+            for signal, terms in INSTRUCTION_SIGNAL_TERMS
+            if signal == "safety"
+            for term in terms
+            if term in words
+        ),
+        None,
+    )
+    if direct_match is not None:
+        return direct_match
+
+    for clause in INSTRUCTION_CLAUSE_BOUNDARY.split(content):
+        clause_tokens = tuple(INSTRUCTION_WORD.findall(clause))
+        for index, token in enumerate(clause_tokens):
+            if token != "never":
+                continue
+            window = clause_tokens[
+                index + 1 : index + 1 + INSTRUCTION_GUARDRAIL_MAX_FOLLOWING_TOKENS
+            ]
+            for qualifier_index, qualifier in enumerate(window):
+                if qualifier not in INSTRUCTION_CONFIDENTIAL_DATA_QUALIFIERS:
+                    continue
+                if "data" in window[qualifier_index + 1 :]:
+                    return f"never+{qualifier}+data"
+    return None
+
+
 def _agent_instruction_quality(root: Path, _: str, __: AuditConfig) -> Finding:
     content = (_read_repository_text(root, "AGENTS.md") or "").lower()
-    words = frozenset(INSTRUCTION_WORD.findall(content))
+    tokens = tuple(INSTRUCTION_WORD.findall(content))
+    words = frozenset(tokens)
     matches = tuple(
-        (signal, next((term for term in terms if term in words), None))
+        (
+            signal,
+            _instruction_safety_match(content, words)
+            if signal == "safety"
+            else next((term for term in terms if term in words), None),
+        )
         for signal, terms in INSTRUCTION_SIGNAL_TERMS
     )
     present = tuple(signal for signal, match in matches if match is not None)

@@ -27,6 +27,8 @@ All notable product changes are recorded here. Product and harness versions are 
 - Applied shared YAML node-count and nesting-depth limits before workflow or Skill interpretation.
 - Replaced literal-substring agent-instruction checks with token-bounded, explainable vocabulary
   that recognizes equivalent authority, testing, safety, and verification terms.
+- Recognized a bounded prohibition on confidential or proprietary data as safety evidence while
+  preserving warnings for unrelated uses of `never`, `security`, or `authority`.
 - Advanced configuration and report schemas to 1.1 for normalized, deterministic evidence
   declarations while preserving schema 1.0 inputs without declarations.
 - Advanced configuration and report schemas to 1.2 for primary-check declarations while preserving
